@@ -1,0 +1,25 @@
+{
+  "name": "@rag/config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./eslint.config.mjs": "./eslint.config.mjs",
+    "./typescript/base.json": "./typescript/base.json",
+    "./typescript/nextjs.json": "./typescript/nextjs.json",
+    "./typescript/library.json": "./typescript/library.json",
+    "./tailwind/preset": "./tailwind/preset.ts"
+  },
+  "files": [
+    "eslint.config.mjs",
+    "typescript",
+    "tailwind"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "globals": "^15.13.0",
+    "tailwindcss": "^3.4.16",
+    "typescript-eslint": "^8.18.0"
+  }
+}
