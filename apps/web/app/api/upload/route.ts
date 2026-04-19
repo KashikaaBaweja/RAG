@@ -1,3 +1,7 @@
+/**
+ * Multipart upload → object storage → BullMQ `ingestion` job (async pipeline).
+ * Stages: `@/lib/ingestion/*` (re-exports `@rag/ingestion`, shared with `apps/worker`).
+ */
 import { NextResponse, type NextRequest } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getIngestionQueue } from "@/lib/queue";

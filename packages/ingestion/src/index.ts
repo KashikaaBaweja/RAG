@@ -1,5 +1,10 @@
 export { chunkText } from "./chunker.js";
 export { embedTexts, type EmbedderOptions } from "./embedder.js";
+export {
+  INGESTION_QUEUE,
+  createIngestionWorker,
+  type IngestionJobData,
+} from "./ingestion-worker.js";
 export { loadDocument, type LoaderInput } from "./loader.js";
 export {
   upsertVectors,
@@ -7,3 +12,5 @@ export {
   type VectorMetadata,
 } from "./pinecone.js";
 export { runIngestion, type RunIngestionParams, type RunIngestionResult } from "./pipeline.js";
+export { readUpload } from "./read-upload.js";
+export { bullmqConnectionFromEnv } from "./redis-connection.js";

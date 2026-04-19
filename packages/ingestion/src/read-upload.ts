@@ -1,9 +1,6 @@
 import { readFile } from "fs/promises";
 import path from "path";
-import {
-  GetObjectCommand,
-  S3Client,
-} from "@aws-sdk/client-s3";
+import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 const uploadRoot = () =>
   process.env.RAG_UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
@@ -20,7 +17,7 @@ function s3Client(): S3Client | null {
   return new S3Client({ region: process.env.AWS_REGION ?? "us-east-1" });
 }
 
-/** Mirrors `apps/web/lib/storage.ts` read path so jobs resolve the same objects. */
+/** Read object written by upload API (local disk or S3). */
 export async function readUpload(storageKey: string): Promise<Buffer> {
   const client = s3Client();
   const bucket = process.env.RAG_S3_BUCKET;
