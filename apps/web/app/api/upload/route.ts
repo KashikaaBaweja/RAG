@@ -45,6 +45,9 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     docId,
     orgId,
+    filename: file.name,
+    storageKey,
+    mimeType: file.type || "application/octet-stream",
     status: "queued",
     message: "File stored; ingestion job enqueued.",
   });
