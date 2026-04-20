@@ -1,4 +1,7 @@
+import { getServerSession } from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
+import { authOptions, assertOrgInToken } from "@/lib/auth";
+import { createQueryLog } from "@/lib/db/knowledgeBase";
 import {
   citationIndexFromDocuments,
   resolveCitations,
@@ -49,6 +52,11 @@ function sseHeaders(): HeadersInit {
 
 /** POST JSON → SSE stream of `{ type, content? }` then `[DONE]`, or JSON when `stream: false`. */
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const envOrErr = requireEnv();
   if (envOrErr instanceof NextResponse) return envOrErr;
 
@@ -67,7 +75,17 @@ export async function POST(req: NextRequest) {
   const orgId =
     typeof body.orgId === "string" && body.orgId.length > 0
       ? body.orgId
-      : req.headers.get("x-org-id") ?? "dev-org";
+      : req.headers.get("x-org-id") ?? "";
+
+  if (!orgId) {
+    return NextResponse.json({ error: "orgId required" }, { status: 400 });
+  }
+
+  try {
+    assertOrgInToken(session.user.memberships, orgId);
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const env: RagChainEnv = {
     ...envOrErr,
@@ -78,6 +96,7 @@ export async function POST(req: NextRequest) {
   };
 
   const useSse = body.stream !== false;
+  const userId = session.user.id;
 
   if (!useSse) {
     const { invokeRagQuery } = await import("@/lib/rag/chain");
@@ -98,6 +117,12 @@ export async function POST(req: NextRequest) {
     const idx = citationIndexFromDocuments(docs);
     const answer = typeof out.answer === "string" ? out.answer : String(out.answer ?? "");
     const citations = resolveCitations(answer, idx);
+    await createQueryLog({
+      orgId,
+      userId,
+      question: query,
+      answerPreview: answer.slice(0, 500),
+    });
     return NextResponse.json({ answer, citations, context: out.context });
   }
 
@@ -124,6 +149,12 @@ export async function POST(req: NextRequest) {
               citations: resolveCitations(answer, idx),
             });
             send({ type: "done", answer });
+            await createQueryLog({
+              orgId,
+              userId,
+              question: query,
+              answerPreview: answer.slice(0, 500),
+            });
           }
         }
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));

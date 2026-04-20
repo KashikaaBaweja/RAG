@@ -24,6 +24,7 @@ export function UploadZone({ orgId, onUploaded }: Props) {
 
       const xhr = new XMLHttpRequest();
       xhr.open("POST", "/api/upload");
+      xhr.withCredentials = true;
       xhr.setRequestHeader("x-org-id", orgId);
 
       xhr.upload.onprogress = (e) => {
@@ -44,6 +45,7 @@ export function UploadZone({ orgId, onUploaded }: Props) {
             filename: string;
             storageKey: string;
             mimeType: string;
+            error?: string;
           };
           if (xhr.status >= 200 && xhr.status < 300 && json.docId) {
             const rec: UploadedDocRecord = {
@@ -58,7 +60,7 @@ export function UploadZone({ orgId, onUploaded }: Props) {
             setStatus("Queued for ingestion.");
             onUploaded?.(rec);
           } else {
-            setStatus(json && typeof json === "object" && "error" in json ? String((json as { error?: string }).error) : "Upload failed");
+            setStatus(json.error ?? `Upload failed (${xhr.status})`);
           }
         } catch {
           setStatus(xhr.status ? `Upload failed (${xhr.status})` : "Upload failed");
@@ -129,7 +131,7 @@ export function UploadZone({ orgId, onUploaded }: Props) {
         role="presentation"
       >
         <p className="text-sm text-zinc-400">Drop PDF, DOCX, TXT, or Markdown here</p>
-        <p className="mt-1 text-xs text-zinc-600">Async ingestion via BullMQ</p>
+        <p className="mt-1 text-xs text-zinc-600">Requires sign-in · org-scoped storage</p>
       </div>
       {busy && (
         <div className="mt-4">

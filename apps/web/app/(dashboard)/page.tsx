@@ -1,38 +1,89 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { listRecentQueries, listUploadedDocs } from "@/lib/client/doc-store";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { listUploadedDocs } from "@/lib/client/doc-store";
 import { ChatPanel } from "@/components/ChatPanel";
 import { DocManager } from "@/components/DocManager";
 import { UploadZone } from "@/components/UploadZone";
 
+type OrgRow = {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+  knowledgeBases: { id: string; name: string; _count: { documents: number } }[];
+  stats: { documents: number; queries: number };
+};
+
+type QueryRow = {
+  id: string;
+  question: string;
+  answerPreview: string | null;
+  createdAt: string;
+};
+
 export default function DashboardPage() {
-  const [orgId, setOrgId] = useState("dev-org");
+  const [orgs, setOrgs] = useState<OrgRow[]>([]);
+  const [orgId, setOrgId] = useState("");
   const [docRefresh, setDocRefresh] = useState(0);
   const [uiTick, setUiTick] = useState(0);
+  const [recent, setRecent] = useState<QueryRow[]>([]);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  const loadOrgs = useCallback(async () => {
+    setLoadErr(null);
+    try {
+      const res = await fetch("/api/orgs", { credentials: "include" });
+      const data = (await res.json()) as { orgs?: OrgRow[]; error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      const list = data.orgs ?? [];
+      setOrgs(list);
+      setOrgId((prev) => {
+        if (prev && list.some((o) => o.id === prev)) return prev;
+        return list[0]?.id ?? "";
+      });
+    } catch (e) {
+      setLoadErr(e instanceof Error ? e.message : "Failed to load orgs");
+    }
+  }, []);
+
+  const loadRecent = useCallback(async () => {
+    if (!orgId) {
+      setRecent([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/queries?orgId=${encodeURIComponent(orgId)}`, {
+        credentials: "include",
+        headers: { "x-org-id": orgId },
+      });
+      const data = (await res.json()) as { queries?: QueryRow[] };
+      if (res.ok) setRecent((data.queries ?? []).slice(0, 8));
+    } catch {
+      setRecent([]);
+    }
+  }, [orgId]);
+
+  useEffect(() => {
+    void loadOrgs();
+  }, [loadOrgs, docRefresh, uiTick]);
+
+  useEffect(() => {
+    void loadRecent();
+  }, [loadRecent, uiTick, orgId]);
+
+  const activeOrg = useMemo(() => orgs.find((o) => o.id === orgId), [orgs, orgId]);
 
   const stats = useMemo(() => {
-    const docs = listUploadedDocs().filter((d) => d.orgId === orgId);
-    const queries = listRecentQueries();
+    const localDocs = listUploadedDocs().filter((d) => d.orgId === orgId).length;
     return {
-      documents: docs.length,
-      queries: queries.length,
+      documents: activeOrg?.stats.documents ?? 0,
+      queries: activeOrg?.stats.queries ?? 0,
+      localDocs,
     };
-  }, [orgId, docRefresh, uiTick]);
+  }, [activeOrg, orgId, docRefresh, uiTick]);
 
-  const recent = useMemo(() => listRecentQueries().slice(0, 6), [docRefresh, uiTick]);
-
-  const kbs = useMemo(
-    () => [
-      {
-        id: "default",
-        name: "Main knowledge base",
-        description: "Vectors in Pinecone namespace = org id",
-        docs: stats.documents,
-      },
-    ],
-    [stats.documents]
-  );
+  const kbs = activeOrg?.knowledgeBases ?? [];
 
   return (
     <div className="space-y-8">
@@ -40,52 +91,68 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold text-zinc-50">Dashboard</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            Uploads, chat, and document list are tracked in this browser until Prisma metadata ships.
+            Org-scoped data from Postgres; Pinecone namespace matches org id.
           </p>
+          {loadErr && <p className="mt-2 text-xs text-red-400">{loadErr}</p>}
         </div>
         <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          Org id
-          <input
+          Active organization
+          <select
             value={orgId}
-            onChange={(e) => setOrgId(e.target.value || "dev-org")}
-            className="w-48 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
-          />
+            onChange={(e) => setOrgId(e.target.value)}
+            className="w-64 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-100"
+          >
+            {orgs.length === 0 ? (
+              <option value="">No orgs — register & sign in</option>
+            ) : (
+              orgs.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name} ({o.role})
+                </option>
+              ))
+            )}
+          </select>
         </label>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard label="Documents (this browser)" value={stats.documents} />
-        <StatCard label="Recent questions stored" value={stats.queries} />
-        <StatCard label="Knowledge bases" value={kbs.length} />
+        <StatCard label="Documents (DB)" value={stats.documents} />
+        <StatCard label="Queries (DB)" value={stats.queries} />
+        <StatCard label="Local upload cache" value={stats.localDocs} />
       </div>
 
       <section>
         <h2 className="mb-3 text-sm font-medium text-zinc-300">Knowledge bases</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {kbs.map((kb) => (
-            <article
-              key={kb.id}
-              className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4"
-            >
-              <h3 className="font-medium text-zinc-100">{kb.name}</h3>
-              <p className="mt-1 text-xs text-zinc-500">{kb.description}</p>
-              <p className="mt-3 text-xs text-zinc-400">{kb.docs} local upload record(s)</p>
-            </article>
-          ))}
-        </div>
+        {kbs.length === 0 ? (
+          <p className="text-sm text-zinc-500">No knowledge bases.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {kbs.map((kb) => (
+              <article
+                key={kb.id}
+                className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4"
+              >
+                <h3 className="font-medium text-zinc-100">{kb.name}</h3>
+                <p className="mt-3 text-xs text-zinc-400">{kb._count.documents} document(s)</p>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section>
         <h2 className="mb-3 text-sm font-medium text-zinc-300">Recent queries</h2>
         {recent.length === 0 ? (
-          <p className="text-sm text-zinc-500">No queries yet — ask something in chat.</p>
+          <p className="text-sm text-zinc-500">No queries logged for this org yet.</p>
         ) : (
           <ul className="divide-y divide-zinc-800 rounded-xl border border-zinc-800 bg-zinc-900/20">
             {recent.map((q) => (
               <li key={q.id} className="px-4 py-3">
-                <p className="text-sm text-zinc-200">{q.query}</p>
-                <p className="mt-1 line-clamp-2 text-xs text-zinc-500">{q.preview}</p>
-                <p className="mt-1 text-[11px] text-zinc-600">{new Date(q.at).toLocaleString()}</p>
+                <p className="text-sm text-zinc-200">{q.question}</p>
+                <p className="mt-1 line-clamp-2 text-xs text-zinc-500">{q.answerPreview}</p>
+                <p className="mt-1 text-[11px] text-zinc-600">
+                  {new Date(q.createdAt).toLocaleString()}
+                </p>
               </li>
             ))}
           </ul>
@@ -95,12 +162,19 @@ export default function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <UploadZone
           orgId={orgId}
-          onUploaded={() => setDocRefresh((n) => n + 1)}
+          onUploaded={() => {
+            setDocRefresh((n) => n + 1);
+            void loadOrgs();
+          }}
         />
         <DocManager orgId={orgId} refreshKey={docRefresh} />
       </div>
 
-      <ChatPanel orgId={orgId} onActivity={() => setUiTick((n) => n + 1)} />
+      {orgId ? (
+        <ChatPanel orgId={orgId} onActivity={() => setUiTick((n) => n + 1)} />
+      ) : (
+        <p className="text-sm text-zinc-500">Select an organization to use chat.</p>
+      )}
     </div>
   );
 }

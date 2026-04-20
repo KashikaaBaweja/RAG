@@ -64,6 +64,7 @@ export function useStreamQuery(options: UseStreamQueryOptions = {}) {
       try {
         const res = await fetch("/api/query", {
           method: "POST",
+          credentials: "include",
           headers: {
             "Content-Type": "application/json",
             ...(orgRef.current ? { "x-org-id": orgRef.current } : {}),

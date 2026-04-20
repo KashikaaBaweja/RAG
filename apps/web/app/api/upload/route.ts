@@ -1,15 +1,23 @@
 /**
  * Multipart upload → object storage → BullMQ `ingestion` job (async pipeline).
- * Stages: `@/lib/ingestion/*` (re-exports `@rag/ingestion`, shared with `apps/worker`).
+ * Requires session + org membership (JWT). Creates `Document` row in Postgres.
  */
+import { getServerSession } from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { v4 as uuidv4 } from "uuid";
+import { authOptions, assertOrgInToken } from "@/lib/auth";
+import { createDocumentRecord, getDefaultKnowledgeBase } from "@/lib/db/knowledgeBase";
 import { getIngestionQueue } from "@/lib/queue";
 import { persistUpload } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const form = await req.formData();
   const file = form.get("file");
 
@@ -21,24 +29,42 @@ export async function POST(req: NextRequest) {
   const orgId =
     typeof orgField === "string" && orgField.length > 0
       ? orgField
-      : req.headers.get("x-org-id") ?? "dev-org";
+      : req.headers.get("x-org-id") ?? "";
+
+  if (!orgId) {
+    return NextResponse.json({ error: "orgId required" }, { status: 400 });
+  }
+
+  try {
+    assertOrgInToken(session.user.memberships, orgId);
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const docId = uuidv4();
   const safeName = file.name.replace(/[^\w.\-]+/g, "_");
   const storageKey = `${orgId}/${docId}-${safeName}`;
+  const mimeType = file.type || "application/octet-stream";
 
-  await persistUpload(
+  await persistUpload(storageKey, buffer, mimeType);
+
+  const kb = await getDefaultKnowledgeBase(orgId);
+  await createDocumentRecord({
+    orgId,
+    knowledgeBaseId: kb.id,
+    docId,
     storageKey,
-    buffer,
-    file.type || "application/octet-stream"
-  );
+    filename: file.name,
+    mimeType,
+    status: "PENDING",
+  });
 
   await getIngestionQueue().add("ingest", {
     storageKey,
     docId,
     orgId,
-    mimeType: file.type || "application/octet-stream",
+    mimeType,
     filename: file.name,
   });
 
@@ -47,7 +73,7 @@ export async function POST(req: NextRequest) {
     orgId,
     filename: file.name,
     storageKey,
-    mimeType: file.type || "application/octet-stream",
+    mimeType,
     status: "queued",
     message: "File stored; ingestion job enqueued.",
   });

@@ -1,8 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { listUploadedDocs, removeUploadedDoc } from "@/lib/client/doc-store";
-import type { UploadedDocRecord } from "@/lib/client/types";
+import { removeUploadedDoc } from "@/lib/client/doc-store";
+
+export type ApiDocument = {
+  id: string;
+  docId: string;
+  orgId: string;
+  knowledgeBaseId: string;
+  storageKey: string;
+  filename: string;
+  mimeType: string;
+  status: string;
+  createdAt: string;
+};
 
 type Props = {
   orgId: string;
@@ -10,32 +21,58 @@ type Props = {
 };
 
 export function DocManager({ orgId, refreshKey = 0 }: Props) {
-  const [docs, setDocs] = useState<UploadedDocRecord[]>([]);
+  const [docs, setDocs] = useState<ApiDocument[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const reload = useCallback(() => {
-    setDocs(listUploadedDocs().filter((d) => d.orgId === orgId));
+  const reload = useCallback(async () => {
+    if (!orgId) {
+      setDocs([]);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/documents?orgId=${encodeURIComponent(orgId)}`, {
+        credentials: "include",
+        headers: { "x-org-id": orgId },
+      });
+      const data = (await res.json()) as { documents?: ApiDocument[]; error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setDocs(data.documents ?? []);
+    } catch {
+      setDocs([]);
+    }
   }, [orgId]);
 
   useEffect(() => {
-    reload();
+    void reload();
   }, [reload, refreshKey]);
 
-  const onDelete = (docId: string) => {
-    removeUploadedDoc(docId);
-    reload();
-    setMsg("Removed from this device list (vectors unchanged until you add a delete API).");
-    setTimeout(() => setMsg(null), 4000);
+  const onDelete = async (docId: string) => {
+    setMsg(null);
+    try {
+      const res = await fetch(
+        `/api/documents?orgId=${encodeURIComponent(orgId)}&docId=${encodeURIComponent(docId)}`,
+        { method: "DELETE", credentials: "include", headers: { "x-org-id": orgId } }
+      );
+      const data = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      removeUploadedDoc(docId);
+      await reload();
+      setMsg("Document removed from catalog (Pinecone vectors not purged).");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Delete failed");
+    }
+    setTimeout(() => setMsg(null), 5000);
   };
 
-  const onReindex = async (doc: UploadedDocRecord) => {
+  const onReindex = async (doc: ApiDocument) => {
     setBusy(doc.docId);
     setMsg(null);
     try {
       const res = await fetch("/api/reindex", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "x-org-id": orgId },
         body: JSON.stringify({
           storageKey: doc.storageKey,
           docId: doc.docId,
@@ -60,17 +97,19 @@ export function DocManager({ orgId, refreshKey = 0 }: Props) {
       <h2 className="mb-3 text-sm font-medium text-zinc-200">Documents</h2>
       {msg && <p className="mb-3 text-xs text-zinc-400">{msg}</p>}
       {docs.length === 0 ? (
-        <p className="text-sm text-zinc-500">No uploads yet for this org on this browser.</p>
+        <p className="text-sm text-zinc-500">No documents for this org yet.</p>
       ) : (
         <ul className="space-y-2">
           {docs.map((d) => (
             <li
-              key={d.docId}
+              key={d.id}
               className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm text-zinc-200">{d.filename}</p>
-                <p className="font-mono text-[11px] text-zinc-500">{d.docId}</p>
+                <p className="font-mono text-[11px] text-zinc-500">
+                  {d.docId} · {d.status}
+                </p>
               </div>
               <div className="flex shrink-0 gap-2">
                 <button
@@ -83,10 +122,10 @@ export function DocManager({ orgId, refreshKey = 0 }: Props) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => onDelete(d.docId)}
+                  onClick={() => void onDelete(d.docId)}
                   className="rounded-md border border-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-950/40"
                 >
-                  Remove
+                  Delete
                 </button>
               </div>
             </li>

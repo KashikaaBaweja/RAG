@@ -1,0 +1,121 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum DocumentStatus {
+  PENDING
+  READY
+  FAILED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+
+  memberships Membership[]
+  queries     Query[]
+  invitesSent Invite[]   @relation("InviteInviter")
+}
+
+model Org {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  memberships     Membership[]
+  knowledgeBases  KnowledgeBase[]
+  documents       Document[]
+  queries           Query[]
+  invites           Invite[]
+}
+
+model Membership {
+  id        String   @id @default(cuid())
+  userId    String
+  orgId     String
+  role      OrgRole  @default(MEMBER)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+model KnowledgeBase {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  createdAt DateTime @default(now())
+
+  org       Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([orgId])
+}
+
+model Document {
+  id              String         @id @default(cuid())
+  orgId           String
+  knowledgeBaseId String
+  docId           String         @unique
+  storageKey      String
+  filename        String
+  mimeType        String
+  status          DocumentStatus @default(PENDING)
+  createdAt       DateTime       @default(now())
+
+  org           Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  knowledgeBase KnowledgeBase @relation(fields: [knowledgeBaseId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([knowledgeBaseId])
+}
+
+model Query {
+  id             String   @id @default(cuid())
+  orgId          String
+  userId         String?
+  question       String   @db.Text
+  answerPreview  String?  @db.Text
+  createdAt      DateTime @default(now())
+
+  org  Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([orgId])
+  @@map("query_logs")
+}
+
+model Invite {
+  id          String   @id @default(cuid())
+  orgId       String
+  email       String
+  role        OrgRole  @default(MEMBER)
+  token       String   @unique
+  expiresAt   DateTime
+  invitedById String?
+  createdAt   DateTime @default(now())
+
+  org       Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invitedBy User? @relation("InviteInviter", fields: [invitedById], references: [id])
+
+  @@index([orgId])
+  @@index([email])
+}
