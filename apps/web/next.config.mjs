@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  eslint: {
+    dirs: ["app", "components", "hooks", "lib", "types"],
+  },
   transpilePackages: [
     "@rag/ingestion",
     "langchain",

@@ -56,7 +56,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm lint
+        run: |
+          set -o pipefail
+          pnpm lint 2>&1 | tee eslint-ci.log || (
+            echo "::error::Lint failed — last 120 lines:"
+            tail -120 eslint-ci.log
+            exit 1
+          )
 
       - name: Build packages + Next
         run: pnpm build
