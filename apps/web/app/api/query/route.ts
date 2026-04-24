@@ -9,6 +9,7 @@ import {
   type RagChainEnv,
 } from "@/lib/rag";
 import { HybridSearchRetriever } from "@/lib/rag/retriever";
+import { ragQueriesTotal, ragQueryLatencySeconds } from "@/lib/telemetry/metrics";
 import type { Document } from "@langchain/core/documents";
 
 export const runtime = "nodejs";
@@ -97,33 +98,43 @@ export async function POST(req: NextRequest) {
 
   const useSse = body.stream !== false;
   const userId = session.user.id;
+  const metricStart = process.hrtime.bigint();
+  const recordQueryMetrics = (stream: boolean) => {
+    const elapsedSec = Number(process.hrtime.bigint() - metricStart) / 1e9;
+    ragQueriesTotal.inc({ org_id: orgId, stream: String(stream) });
+    ragQueryLatencySeconds.observe({ stream: String(stream) }, elapsedSec);
+  };
 
   if (!useSse) {
-    const { invokeRagQuery } = await import("@/lib/rag/chain");
-    const { transcriptToMessages } = await import("@/lib/rag/memory");
-    const out = await invokeRagQuery(env, {
-      query,
-      chat_history: transcriptToMessages(body.history),
-    });
-    const retriever = new HybridSearchRetriever({
-      openaiApiKey: env.openaiApiKey,
-      pineconeApiKey: env.pineconeApiKey,
-      pineconeIndexName: env.pineconeIndexName,
-      orgId: env.orgId,
-      fetchK: env.fetchK,
-      topK: env.topK,
-    });
-    const docs = await retriever.invoke(query);
-    const idx = citationIndexFromDocuments(docs);
-    const answer = typeof out.answer === "string" ? out.answer : String(out.answer ?? "");
-    const citations = resolveCitations(answer, idx);
-    await createQueryLog({
-      orgId,
-      userId,
-      question: query,
-      answerPreview: answer.slice(0, 500),
-    });
-    return NextResponse.json({ answer, citations, context: out.context });
+    try {
+      const { invokeRagQuery } = await import("@/lib/rag/chain");
+      const { transcriptToMessages } = await import("@/lib/rag/memory");
+      const out = await invokeRagQuery(env, {
+        query,
+        chat_history: transcriptToMessages(body.history),
+      });
+      const retriever = new HybridSearchRetriever({
+        openaiApiKey: env.openaiApiKey,
+        pineconeApiKey: env.pineconeApiKey,
+        pineconeIndexName: env.pineconeIndexName,
+        orgId: env.orgId,
+        fetchK: env.fetchK,
+        topK: env.topK,
+      });
+      const docs = await retriever.invoke(query);
+      const idx = citationIndexFromDocuments(docs);
+      const answer = typeof out.answer === "string" ? out.answer : String(out.answer ?? "");
+      const citations = resolveCitations(answer, idx);
+      await createQueryLog({
+        orgId,
+        userId,
+        question: query,
+        answerPreview: answer.slice(0, 500),
+      });
+      return NextResponse.json({ answer, citations, context: out.context });
+    } finally {
+      recordQueryMetrics(false);
+    }
   }
 
   const encoder = new TextEncoder();
@@ -162,6 +173,7 @@ export async function POST(req: NextRequest) {
         send({ type: "error", message: e instanceof Error ? e.message : String(e) });
         controller.enqueue(encoder.encode("data: [DONE]\n\n"));
       } finally {
+        recordQueryMetrics(true);
         controller.close();
       }
     },

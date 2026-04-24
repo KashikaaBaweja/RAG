@@ -3,7 +3,11 @@ import type { Document } from "@langchain/core/documents";
 import type { BaseMessage } from "@langchain/core/messages";
 import { createRetrievalChain } from "langchain/chains/retrieval";
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import { flushLangfuse, startRagChainTrace } from "@/lib/telemetry/langfuse";
 import { createRagCombineChatPrompt, ragDocumentPrompt } from "./prompt";
+import { HybridSearchRetriever } from "./retriever";
+import type { RagEnv } from "./types";
+import { transcriptToMessages } from "./memory";
 
 const DOC_SEP = "\n\n";
 
@@ -20,9 +24,6 @@ async function formatContextDocuments(docs: Document[]): Promise<string> {
   );
   return parts.join(DOC_SEP);
 }
-import { HybridSearchRetriever } from "./retriever";
-import type { RagEnv } from "./types";
-import { transcriptToMessages } from "./memory";
 
 export type RagChainEnv = RagEnv & {
   fetchK?: number;
@@ -65,11 +66,31 @@ export async function invokeRagQuery(
   env: RagChainEnv,
   input: { query: string; chat_history?: BaseMessage[] }
 ) {
-  const chain = await createRagRetrievalQAChain(env);
-  return chain.invoke({
-    input: input.query,
-    chat_history: input.chat_history ?? [],
+  const t0 = Date.now();
+  const trace = startRagChainTrace({
+    query: input.query,
+    orgId: env.orgId,
+    model: env.model,
   });
+  try {
+    const chain = await createRagRetrievalQAChain(env);
+    const out = await chain.invoke({
+      input: input.query,
+      chat_history: input.chat_history ?? [],
+    });
+    const answer = typeof out.answer === "string" ? out.answer : String(out.answer ?? "");
+    trace?.end({ output: answer, latencyMs: Date.now() - t0 });
+    return out;
+  } catch (e) {
+    trace?.end({
+      output: e instanceof Error ? e.message : String(e),
+      latencyMs: Date.now() - t0,
+      metadata: { error: true },
+    });
+    throw e;
+  } finally {
+    await flushLangfuse();
+  }
 }
 
 export type StreamRagParams = RagChainEnv & {
@@ -86,6 +107,12 @@ export async function* streamRagTokens(
   | { type: "token"; content: string }
   | { type: "done"; answer: string; documents: Document[] }
 > {
+  const t0 = Date.now();
+  const trace = startRagChainTrace({
+    query: params.query,
+    orgId: params.orgId,
+    model: params.model,
+  });
   const llm = new ChatOpenAI({
     model: params.model ?? "gpt-4o-mini",
     temperature: 0,
@@ -102,31 +129,43 @@ export async function* streamRagTokens(
     topK: params.topK,
   });
 
-  const docs = await retriever.invoke(params.query);
-  const context = await formatContextDocuments(docs);
+  try {
+    const docs = await retriever.invoke(params.query);
+    const context = await formatContextDocuments(docs);
 
-  const prompt = createRagCombineChatPrompt();
-  const messages = await prompt.formatMessages({
-    context,
-    input: params.query,
-    chat_history: transcriptToMessages(params.history),
-  });
+    const prompt = createRagCombineChatPrompt();
+    const messages = await prompt.formatMessages({
+      context,
+      input: params.query,
+      chat_history: transcriptToMessages(params.history),
+    });
 
-  let accumulated = "";
-  const stream = await llm.stream(messages);
-  for await (const chunk of stream) {
-    const piece =
-      typeof chunk.content === "string"
-        ? chunk.content
-        : Array.isArray(chunk.content)
+    let accumulated = "";
+    const stream = await llm.stream(messages);
+    for await (const chunk of stream) {
+      const piece =
+        typeof chunk.content === "string"
           ? chunk.content
-              .map((p) => (typeof p === "object" && p && "text" in p ? String((p as { text?: string }).text) : ""))
-              .join("")
-          : "";
-    if (!piece) continue;
-    accumulated += piece;
-    yield { type: "token", content: piece };
-  }
+          : Array.isArray(chunk.content)
+            ? chunk.content
+                .map((p) => (typeof p === "object" && p && "text" in p ? String((p as { text?: string }).text) : ""))
+                .join("")
+            : "";
+      if (!piece) continue;
+      accumulated += piece;
+      yield { type: "token", content: piece };
+    }
 
-  yield { type: "done", answer: accumulated, documents: docs };
+    yield { type: "done", answer: accumulated, documents: docs };
+    trace?.end({ output: accumulated, latencyMs: Date.now() - t0 });
+  } catch (e) {
+    trace?.end({
+      output: e instanceof Error ? e.message : String(e),
+      latencyMs: Date.now() - t0,
+      metadata: { error: true },
+    });
+    throw e;
+  } finally {
+    await flushLangfuse();
+  }
 }
