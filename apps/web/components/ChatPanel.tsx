@@ -16,11 +16,14 @@ function renderWithCitationChips(
   let last = 0;
   let m: RegExpExecArray | null;
   const re = new RegExp(SOURCE_RE.source, SOURCE_RE.flags);
-  while ((m = re.exec(text)) !== null) {
+  for (;;) {
+    m = re.exec(text);
+    if (m === null) break;
     if (m.index > last) {
       nodes.push(<span key={`t-${last}`}>{text.slice(last, m.index)}</span>);
     }
-    const id = m[1]!;
+    const id = m[1] ?? "";
+    if (!id) continue;
     nodes.push(
       <button
         key={`c-${m.index}-${id}`}

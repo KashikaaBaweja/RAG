@@ -39,7 +39,8 @@ export async function presignPutUpload(params: {
     ContentType: params.contentType || "application/octet-stream",
   });
   // Smithy minor version skew between S3 client and presigner packages in the monorepo.
-  const uploadUrl = await getSignedUrl(client as never, cmd as never, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- getSignedUrl typings lag client minor versions
+  const uploadUrl = await getSignedUrl(client as any, cmd as any, {
     expiresIn: params.expiresIn ?? 900,
   });
   return { uploadUrl, storageKey };
