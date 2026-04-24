@@ -143,14 +143,14 @@ export async function* streamRagTokens(
     let accumulated = "";
     const stream = await llm.stream(messages);
     for await (const chunk of stream) {
-      const piece =
-        typeof chunk.content === "string"
-          ? chunk.content
-          : Array.isArray(chunk.content)
-            ? chunk.content
-                .map((p) => (typeof p === "object" && p && "text" in p ? String((p as { text?: string }).text) : ""))
-                .join("")
-            : "";
+      let piece = "";
+      if (typeof chunk.content === "string") {
+        piece = chunk.content;
+      } else if (Array.isArray(chunk.content)) {
+        piece = chunk.content
+          .map((p) => (typeof p === "object" && p && "text" in p ? String((p as { text?: string }).text) : ""))
+          .join("");
+      }
       if (!piece) continue;
       accumulated += piece;
       yield { type: "token", content: piece };
