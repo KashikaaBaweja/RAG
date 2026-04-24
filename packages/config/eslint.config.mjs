@@ -12,6 +12,12 @@ export default tseslint.config(
     },
   },
   {
-    ignores: [".next/**", "node_modules/**", "dist/**", ".turbo/**"],
+    ignores: [
+      ".next/**",
+      "node_modules/**",
+      "dist/**",
+      ".turbo/**",
+      "**/*.tsbuildinfo",
+    ],
   }
 );
