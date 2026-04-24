@@ -10,4 +10,11 @@ const compat = new FlatCompat({
   baseDirectory: __dirname,
 });
 
-export default [...base, ...compat.extends("next/core-web-vitals")];
+/** Playwright/Vitest + eval helpers are not Next pages; `next/core-web-vitals` often false-positives on them. */
+export default [
+  {
+    ignores: ["tests/**", "evals/**", "playwright.config.ts", "vitest.config.ts"],
+  },
+  ...base,
+  ...compat.extends("next/core-web-vitals"),
+];

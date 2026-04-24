@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type DragEvent } from "react";
 import { upsertUploadedDoc } from "@/lib/client/doc-store";
 import type { UploadedDocRecord } from "@/lib/client/types";
 
@@ -83,7 +83,7 @@ export function UploadZone({ orgId, onUploaded }: Props) {
   );
 
   const onDrop = useCallback(
-    (e: React.DragEvent) => {
+    (e: DragEvent) => {
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer.files?.[0];

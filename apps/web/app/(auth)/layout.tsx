@@ -1,5 +1,5 @@
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default function AuthLayout({ children }: { children: ReactNode }) {
   return <Suspense fallback={null}>{children}</Suspense>;
 }

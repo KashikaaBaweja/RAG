@@ -87,7 +87,7 @@ export async function invokeRagQuery(
       latencyMs: Date.now() - t0,
       metadata: { error: true },
     });
-    throw e;
+    throw e instanceof Error ? e : new Error(String(e));
   } finally {
     await flushLangfuse();
   }
@@ -164,7 +164,7 @@ export async function* streamRagTokens(
       latencyMs: Date.now() - t0,
       metadata: { error: true },
     });
-    throw e;
+    throw e instanceof Error ? e : new Error(String(e));
   } finally {
     await flushLangfuse();
   }
