@@ -33,7 +33,10 @@ export default function DashboardPage() {
   const loadOrgs = useCallback(async () => {
     setLoadErr(null);
     try {
-      const res = await fetch("/api/orgs", { credentials: "include" });
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 20_000);
+      const res = await fetch("/api/orgs", { credentials: "include", signal: ac.signal });
+      clearTimeout(t);
       const data = (await res.json()) as { orgs?: OrgRow[]; error?: string };
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       const list = data.orgs ?? [];
@@ -43,7 +46,13 @@ export default function DashboardPage() {
         return list[0]?.id ?? "";
       });
     } catch (e) {
-      setLoadErr(e instanceof Error ? e.message : "Failed to load orgs");
+      const msg =
+        e instanceof Error
+          ? e.name === "AbortError"
+            ? "Request timed out — is Postgres running and DATABASE_URL set? (docker compose up -d)"
+            : e.message
+          : "Failed to load orgs";
+      setLoadErr(msg);
     }
   }, []);
 

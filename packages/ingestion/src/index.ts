@@ -6,6 +6,7 @@ export {
   type IngestionJobData,
 } from "./ingestion-worker.js";
 export { loadDocument, type LoaderInput } from "./loader.js";
+export { scrubPiiFromText } from "./pii-scrub.js";
 export {
   upsertVectors,
   type UpsertRecord,

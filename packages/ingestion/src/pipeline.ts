@@ -1,6 +1,7 @@
 import { chunkText } from "./chunker.js";
 import { embedTexts } from "./embedder.js";
 import { loadDocument } from "./loader.js";
+import { scrubPiiFromText } from "./pii-scrub.js";
 import { upsertVectors, type UpsertRecord } from "./pinecone.js";
 
 export type RunIngestionParams = {
@@ -35,7 +36,7 @@ export async function runIngestion(
     filename: params.filename,
   });
 
-  const chunks = await chunkText(text);
+  const chunks = (await chunkText(text)).map((c) => scrubPiiFromText(c));
   const embeddings = await embedTexts(chunks, {
     apiKey: params.openaiApiKey,
   });
