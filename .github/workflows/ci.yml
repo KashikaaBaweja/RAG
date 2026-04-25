@@ -58,11 +58,13 @@ jobs:
       - name: Lint
         run: |
           set -o pipefail
-          pnpm lint 2>&1 | tee eslint-ci.log || (
+          pnpm --filter web run lint 2>&1 | tee eslint-web-ci.log || (
             echo "::error::Lint failed — last 120 lines:"
-            tail -120 eslint-ci.log
+            tail -120 eslint-web-ci.log
             exit 1
           )
+          pnpm --filter @rag/ingestion run lint
+          pnpm --filter worker run lint
 
       - name: Build packages + Next
         run: pnpm build
