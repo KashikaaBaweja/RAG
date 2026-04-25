@@ -8,7 +8,7 @@ export { readUpload };
 const uploadRoot = () =>
   process.env.RAG_UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
 
-function useS3(): boolean {
+function shouldUseS3(): boolean {
   return (
     process.env.RAG_USE_S3 === "1" ||
     process.env.RAG_USE_S3 === "true"
@@ -16,7 +16,7 @@ function useS3(): boolean {
 }
 
 function s3Client(): S3Client | null {
-  if (!useS3()) return null;
+  if (!shouldUseS3()) return null;
   const region = process.env.AWS_REGION ?? "us-east-1";
   return new S3Client({ region });
 }

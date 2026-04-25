@@ -141,6 +141,7 @@ export class HybridSearchRetriever extends BaseRetriever {
     query: string,
     _runManager?: CallbackManagerForRetrieverRun
   ): Promise<Document[]> {
+    void _runManager;
     const chunks = await hybridRetrieve({ ...this.cfg, query });
     return chunks.map(
       (c) =>

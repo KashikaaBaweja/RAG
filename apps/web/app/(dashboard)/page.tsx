@@ -83,14 +83,12 @@ export default function DashboardPage() {
 
   const activeOrg = useMemo(() => orgs.find((o) => o.id === orgId), [orgs, orgId]);
 
-  const stats = useMemo(() => {
-    const localDocs = listUploadedDocs().filter((d) => d.orgId === orgId).length;
-    return {
-      documents: activeOrg?.stats.documents ?? 0,
-      queries: activeOrg?.stats.queries ?? 0,
-      localDocs,
-    };
-  }, [activeOrg, orgId, docRefresh, uiTick]);
+  const localDocs = listUploadedDocs().filter((d) => d.orgId === orgId).length;
+  const stats = {
+    documents: activeOrg?.stats.documents ?? 0,
+    queries: activeOrg?.stats.queries ?? 0,
+    localDocs,
+  };
 
   const kbs = activeOrg?.knowledgeBases ?? [];
 

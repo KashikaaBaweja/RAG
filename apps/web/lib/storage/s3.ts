@@ -30,7 +30,7 @@ export async function presignPutUpload(params: {
   expiresIn?: number;
 }): Promise<{ uploadUrl: string; storageKey: string }> {
   const bucket = getS3Bucket();
-  const safe = params.filename.replace(/[^\w.\-]+/g, "_");
+  const safe = params.filename.replace(/[^\w.-]+/g, "_");
   const storageKey = orgObjectKey(params.orgId, `${params.docId}-${safe}`);
   const client = s3Client();
   const cmd = new PutObjectCommand({

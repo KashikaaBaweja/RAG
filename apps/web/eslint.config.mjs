@@ -11,10 +11,12 @@ const compat = new FlatCompat({
 });
 
 /** Playwright/Vitest + eval helpers are not Next pages; `next/core-web-vitals` often false-positives on them. */
-export default [
+const eslintConfig = [
   {
     ignores: ["tests/**", "evals/**", "playwright.config.ts", "vitest.config.ts"],
   },
   ...base,
   ...compat.extends("next/core-web-vitals"),
 ];
+
+export default eslintConfig;

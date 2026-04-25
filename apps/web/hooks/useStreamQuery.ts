@@ -87,7 +87,7 @@ export function useStreamQuery(options: UseStreamQueryOptions = {}) {
         const decoder = new TextDecoder();
         let carry = "";
 
-        while (true) {
+        for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
           carry += decoder.decode(value, { stream: true });

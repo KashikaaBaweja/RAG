@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const docId = uuidv4();
-  const safeName = file.name.replace(/[^\w.\-]+/g, "_");
+  const safeName = file.name.replace(/[^\w.-]+/g, "_");
   const storageKey = `${orgId}/${docId}-${safeName}`;
   const mimeType = file.type || "application/octet-stream";
 
