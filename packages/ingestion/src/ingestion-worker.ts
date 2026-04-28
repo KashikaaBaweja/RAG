@@ -18,13 +18,24 @@ export type IngestionJobData = {
  * Run as a **separate Node process** (not inside Next.js).
  */
 export function createIngestionWorker(): Worker<IngestionJobData> {
+  const embeddingProvider = process.env.RAG_EMBEDDING_PROVIDER === "openai" ? "openai" : "ollama";
+  const vectorProvider = process.env.RAG_VECTOR_PROVIDER === "pinecone" ? "pinecone" : "qdrant";
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const pineconeApiKey = process.env.PINECONE_API_KEY;
   const pineconeIndexName = process.env.PINECONE_INDEX_NAME;
+  const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
+  const ollamaEmbeddingModel = process.env.OLLAMA_EMBEDDING_MODEL;
+  const qdrantUrl = process.env.QDRANT_URL;
+  const qdrantCollection = process.env.QDRANT_COLLECTION;
+  const qdrantApiKey = process.env.QDRANT_API_KEY;
 
-  if (!openaiApiKey || !pineconeApiKey || !pineconeIndexName) {
+  if (embeddingProvider === "openai" && !openaiApiKey) {
+    console.warn("[ingestion-worker] Missing OPENAI_API_KEY — jobs will fail until set.");
+  }
+
+  if (vectorProvider === "pinecone" && (!pineconeApiKey || !pineconeIndexName)) {
     console.warn(
-      "[ingestion-worker] Missing OPENAI_API_KEY, PINECONE_API_KEY, or PINECONE_INDEX_NAME — jobs will fail until set."
+      "[ingestion-worker] Missing PINECONE_API_KEY or PINECONE_INDEX_NAME — jobs will fail until set."
     );
   }
 
@@ -33,8 +44,12 @@ export function createIngestionWorker(): Worker<IngestionJobData> {
     async (job) => {
       const { storageKey, docId, orgId, mimeType, filename } = job.data;
 
-      if (!openaiApiKey || !pineconeApiKey || !pineconeIndexName) {
-        throw new Error("Missing OpenAI or Pinecone configuration");
+      if (embeddingProvider === "openai" && !openaiApiKey) {
+        throw new Error("Missing OpenAI configuration");
+      }
+
+      if (vectorProvider === "pinecone" && (!pineconeApiKey || !pineconeIndexName)) {
+        throw new Error("Missing Pinecone configuration");
       }
 
       const buffer = await readUpload(storageKey);
@@ -45,9 +60,16 @@ export function createIngestionWorker(): Worker<IngestionJobData> {
         filename,
         docId,
         orgId,
+        embeddingProvider,
+        vectorProvider,
         openaiApiKey,
         pineconeApiKey,
         pineconeIndexName,
+        ollamaBaseUrl,
+        ollamaEmbeddingModel,
+        qdrantUrl,
+        qdrantCollection,
+        qdrantApiKey,
       });
     },
     { connection: bullmqConnectionFromEnv() }

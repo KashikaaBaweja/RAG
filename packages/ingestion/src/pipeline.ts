@@ -10,9 +10,16 @@ export type RunIngestionParams = {
   filename: string;
   docId: string;
   orgId: string;
-  openaiApiKey: string;
-  pineconeApiKey: string;
-  pineconeIndexName: string;
+  embeddingProvider?: "openai" | "ollama";
+  vectorProvider?: "pinecone" | "qdrant";
+  openaiApiKey?: string;
+  pineconeApiKey?: string;
+  pineconeIndexName?: string;
+  ollamaBaseUrl?: string;
+  ollamaEmbeddingModel?: string;
+  qdrantUrl?: string;
+  qdrantCollection?: string;
+  qdrantApiKey?: string;
   /** PDF/DOCX without page map: use 1 for all chunks until per-page loaders exist. */
   defaultPage?: number;
 };
@@ -38,7 +45,10 @@ export async function runIngestion(
 
   const chunks = (await chunkText(text)).map((c) => scrubPiiFromText(c));
   const embeddings = await embedTexts(chunks, {
+    provider: params.embeddingProvider,
     apiKey: params.openaiApiKey,
+    baseUrl: params.ollamaBaseUrl,
+    model: params.ollamaEmbeddingModel,
   });
 
   const records: UpsertRecord[] = chunks.map((chunkText, chunkIndex) => ({
@@ -53,12 +63,16 @@ export async function runIngestion(
     },
   }));
 
-  await upsertVectors(
-    params.pineconeApiKey,
-    params.pineconeIndexName,
-    params.orgId,
-    records
-  );
+  await upsertVectors({
+    provider: params.vectorProvider,
+    pineconeApiKey: params.pineconeApiKey,
+    pineconeIndexName: params.pineconeIndexName,
+    qdrantUrl: params.qdrantUrl,
+    qdrantCollection: params.qdrantCollection,
+    qdrantApiKey: params.qdrantApiKey,
+    orgId: params.orgId,
+    records,
+  });
 
   return {
     chunkCount: records.length,

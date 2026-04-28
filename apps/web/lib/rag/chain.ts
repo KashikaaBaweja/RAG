@@ -32,22 +32,39 @@ export type RagChainEnv = RagEnv & {
   model?: string;
 };
 
+function createChatModel(env: RagChainEnv, streaming = false): ChatOpenAI {
+  if (env.embeddingProvider === "openai") {
+    if (!env.openaiApiKey) {
+      throw new Error("OPENAI_API_KEY is required when RAG_EMBEDDING_PROVIDER=openai");
+    }
+
+    return new ChatOpenAI({
+      model: env.model ?? "gpt-4o-mini",
+      temperature: 0,
+      openAIApiKey: env.openaiApiKey,
+      streaming,
+    });
+  }
+
+  const baseURL = `${(env.ollamaBaseUrl ?? "http://127.0.0.1:11434").replace(/\/+$/, "")}/v1`;
+  return new ChatOpenAI({
+    model: env.model ?? env.ollamaChatModel ?? "llama3.1",
+    temperature: 0,
+    openAIApiKey: "ollama",
+    configuration: { baseURL },
+    streaming,
+  });
+}
+
 /**
  * LangChain retrieval QA pattern: retrieve → stuff documents → answer.
  * (Successor to `RetrievalQAChain`: `createRetrievalChain` + `createStuffDocumentsChain`.)
  */
 export async function createRagRetrievalQAChain(env: RagChainEnv) {
-  const llm = new ChatOpenAI({
-    model: env.model ?? "gpt-4o-mini",
-    temperature: 0,
-    openAIApiKey: env.openaiApiKey,
-  });
+  const llm = createChatModel(env);
 
   const retriever = new HybridSearchRetriever({
-    openaiApiKey: env.openaiApiKey,
-    pineconeApiKey: env.pineconeApiKey,
-    pineconeIndexName: env.pineconeIndexName,
-    orgId: env.orgId,
+    ...env,
     fetchK: env.fetchK,
     topK: env.topK,
   });
@@ -113,18 +130,10 @@ export async function* streamRagTokens(
     orgId: params.orgId,
     model: params.model,
   });
-  const llm = new ChatOpenAI({
-    model: params.model ?? "gpt-4o-mini",
-    temperature: 0,
-    openAIApiKey: params.openaiApiKey,
-    streaming: true,
-  });
+  const llm = createChatModel(params, true);
 
   const retriever = new HybridSearchRetriever({
-    openaiApiKey: params.openaiApiKey,
-    pineconeApiKey: params.pineconeApiKey,
-    pineconeIndexName: params.pineconeIndexName,
-    orgId: params.orgId,
+    ...params,
     fetchK: params.fetchK,
     topK: params.topK,
   });

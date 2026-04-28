@@ -44,6 +44,16 @@ function asNumber(v: unknown): number {
   return Number.isFinite(n) ? n : 1;
 }
 
+type QdrantPoint = {
+  id?: string | number;
+  score?: number;
+  payload?: Record<string, unknown>;
+};
+
+type QdrantSearchResponse = {
+  result?: QdrantPoint[];
+};
+
 export type HybridRetrieveParams = RagEnv & {
   query: string;
   /** Pinecone dense candidates before fusion. */
@@ -63,19 +73,17 @@ export async function hybridRetrieve(params: HybridRetrieveParams): Promise<Retr
   const topK = params.topK ?? 8;
 
   const [embedding] = await embedTexts([params.query], {
+    provider: params.embeddingProvider,
     apiKey: params.openaiApiKey,
+    baseUrl: params.ollamaBaseUrl,
+    model: params.ollamaEmbeddingModel,
   });
 
-  const pc = new Pinecone({ apiKey: params.pineconeApiKey });
-  const ns = pc.index(params.pineconeIndexName).namespace(params.orgId);
+  const matches =
+    params.vectorProvider === "qdrant"
+      ? await queryQdrant(params, embedding, fetchK)
+      : await queryPinecone(params, embedding, fetchK);
 
-  const res = await ns.query({
-    vector: embedding,
-    topK: fetchK,
-    includeMetadata: true,
-  });
-
-  const matches = res.matches ?? [];
   const byId = new Map<
     string,
     { text: string; docId: string; page: number; chunkIndex: number; dense: number }
@@ -83,15 +91,16 @@ export async function hybridRetrieve(params: HybridRetrieveParams): Promise<Retr
 
   const denseOrder: string[] = [];
   for (const m of matches) {
-    if (!m.id) continue;
-    const meta = m.metadata ?? {};
-    const text = asString(meta.text);
-    const docId = asString(meta.docId);
-    const page = asNumber(meta.page);
-    const chunkIndex = asNumber(meta.chunkIndex);
-    const dense = typeof m.score === "number" ? m.score : 0;
-    byId.set(m.id, { text, docId, page, chunkIndex, dense });
-    denseOrder.push(m.id);
+    const id = m.id;
+    if (!id) continue;
+    byId.set(id, {
+      text: m.text,
+      docId: m.docId,
+      page: m.page,
+      chunkIndex: m.chunkIndex,
+      dense: m.score,
+    });
+    denseOrder.push(id);
   }
 
   if (denseOrder.length === 0) return [];
@@ -127,6 +136,95 @@ export async function hybridRetrieve(params: HybridRetrieveParams): Promise<Retr
     chunkIndex: row.chunkIndex,
     denseScore: rerank,
   }));
+}
+
+type VectorMatch = {
+  id: string;
+  text: string;
+  docId: string;
+  page: number;
+  chunkIndex: number;
+  score: number;
+};
+
+async function queryPinecone(
+  params: HybridRetrieveParams,
+  embedding: number[],
+  fetchK: number
+): Promise<VectorMatch[]> {
+  if (!params.pineconeApiKey || !params.pineconeIndexName) {
+    throw new Error("PINECONE_API_KEY and PINECONE_INDEX_NAME are required when RAG_VECTOR_PROVIDER=pinecone");
+  }
+
+  const pc = new Pinecone({ apiKey: params.pineconeApiKey });
+  const ns = pc.index(params.pineconeIndexName).namespace(params.orgId);
+
+  const res = await ns.query({
+    vector: embedding,
+    topK: fetchK,
+    includeMetadata: true,
+  });
+
+  return (res.matches ?? []).flatMap((m) => {
+    if (!m.id) return [];
+    const meta = m.metadata ?? {};
+    return [{
+      id: m.id,
+      text: asString(meta.text),
+      docId: asString(meta.docId),
+      page: asNumber(meta.page),
+      chunkIndex: asNumber(meta.chunkIndex),
+      score: typeof m.score === "number" ? m.score : 0,
+    }];
+  });
+}
+
+async function queryQdrant(
+  params: HybridRetrieveParams,
+  embedding: number[],
+  fetchK: number
+): Promise<VectorMatch[]> {
+  const baseUrl = (params.qdrantUrl ?? "http://127.0.0.1:6333").replace(/\/+$/, "");
+  const collection = params.qdrantCollection ?? "rag_chunks";
+  const res = await fetch(`${baseUrl}/collections/${collection}/points/search`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(params.qdrantApiKey ? { "api-key": params.qdrantApiKey } : {}),
+    },
+    body: JSON.stringify({
+      vector: embedding,
+      limit: fetchK,
+      with_payload: true,
+      filter: {
+        must: [
+          {
+            key: "orgId",
+            match: { value: params.orgId },
+          },
+        ],
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Qdrant search failed: ${res.status} ${await res.text()}`);
+  }
+
+  const json = (await res.json()) as QdrantSearchResponse;
+  return (json.result ?? []).flatMap((point) => {
+    const payload = point.payload ?? {};
+    const id = asString(payload.chunkId || point.id);
+    if (!id) return [];
+    return [{
+      id,
+      text: asString(payload.text),
+      docId: asString(payload.docId),
+      page: asNumber(payload.page),
+      chunkIndex: asNumber(payload.chunkIndex),
+      score: typeof point.score === "number" ? point.score : 0,
+    }];
+  });
 }
 
 /** LangChain retriever: hybrid search + rerank, exposed as `Document[]`. */

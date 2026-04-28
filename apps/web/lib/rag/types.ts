@@ -1,7 +1,15 @@
 export type RagEnv = {
-  openaiApiKey: string;
-  pineconeApiKey: string;
-  pineconeIndexName: string;
+  embeddingProvider: "openai" | "ollama";
+  vectorProvider: "pinecone" | "qdrant";
+  openaiApiKey?: string;
+  pineconeApiKey?: string;
+  pineconeIndexName?: string;
+  ollamaBaseUrl?: string;
+  ollamaEmbeddingModel?: string;
+  ollamaChatModel?: string;
+  qdrantUrl?: string;
+  qdrantCollection?: string;
+  qdrantApiKey?: string;
   orgId: string;
 };
 

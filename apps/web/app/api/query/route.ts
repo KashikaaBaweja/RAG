@@ -26,19 +26,35 @@ type Body = {
 };
 
 function requireEnv(): RagChainEnv | NextResponse {
+  const embeddingProvider = process.env.RAG_EMBEDDING_PROVIDER === "openai" ? "openai" : "ollama";
+  const vectorProvider = process.env.RAG_VECTOR_PROVIDER === "pinecone" ? "pinecone" : "qdrant";
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const pineconeApiKey = process.env.PINECONE_API_KEY;
   const pineconeIndexName = process.env.PINECONE_INDEX_NAME;
-  if (!openaiApiKey || !pineconeApiKey || !pineconeIndexName) {
+
+  if (embeddingProvider === "openai" && !openaiApiKey) {
+    return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
+  }
+
+  if (vectorProvider === "pinecone" && (!pineconeApiKey || !pineconeIndexName)) {
     return NextResponse.json(
-      { error: "Missing OPENAI_API_KEY, PINECONE_API_KEY, or PINECONE_INDEX_NAME" },
+      { error: "Missing PINECONE_API_KEY or PINECONE_INDEX_NAME" },
       { status: 500 }
     );
   }
+
   return {
+    embeddingProvider,
+    vectorProvider,
     openaiApiKey,
     pineconeApiKey,
     pineconeIndexName,
+    ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
+    ollamaEmbeddingModel: process.env.OLLAMA_EMBEDDING_MODEL,
+    ollamaChatModel: process.env.OLLAMA_CHAT_MODEL,
+    qdrantUrl: process.env.QDRANT_URL,
+    qdrantCollection: process.env.QDRANT_COLLECTION,
+    qdrantApiKey: process.env.QDRANT_API_KEY,
     orgId: "",
   };
 }
@@ -114,10 +130,7 @@ export async function POST(req: NextRequest) {
         chat_history: transcriptToMessages(body.history),
       });
       const retriever = new HybridSearchRetriever({
-        openaiApiKey: env.openaiApiKey,
-        pineconeApiKey: env.pineconeApiKey,
-        pineconeIndexName: env.pineconeIndexName,
-        orgId: env.orgId,
+        ...env,
         fetchK: env.fetchK,
         topK: env.topK,
       });

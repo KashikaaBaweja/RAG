@@ -11,6 +11,7 @@ export {
   upsertVectors,
   type UpsertRecord,
   type VectorMetadata,
+  type VectorStoreOptions,
 } from "./pinecone.js";
 export { runIngestion, type RunIngestionParams, type RunIngestionResult } from "./pipeline.js";
 export { readUpload } from "./read-upload.js";
