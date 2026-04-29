@@ -26,16 +26,15 @@ type Body = {
 };
 
 function requireEnv(): RagChainEnv | NextResponse {
-  const embeddingProvider = process.env.RAG_EMBEDDING_PROVIDER === "openai" ? "openai" : "ollama";
+  const embeddingProvider =
+    process.env.RAG_EMBEDDING_PROVIDER === "openai" ? "openai" : "ollama";
   const vectorProvider = process.env.RAG_VECTOR_PROVIDER === "pinecone" ? "pinecone" : "qdrant";
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const pineconeApiKey = process.env.PINECONE_API_KEY;
   const pineconeIndexName = process.env.PINECONE_INDEX_NAME;
-
   if (embeddingProvider === "openai" && !openaiApiKey) {
     return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
   }
-
   if (vectorProvider === "pinecone" && (!pineconeApiKey || !pineconeIndexName)) {
     return NextResponse.json(
       { error: "Missing PINECONE_API_KEY or PINECONE_INDEX_NAME" },
