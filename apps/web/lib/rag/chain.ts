@@ -10,6 +10,8 @@ import type { RagEnv } from "./types";
 import { transcriptToMessages } from "./memory";
 
 const DOC_SEP = "\n\n";
+const NO_CONTEXT_FALLBACK =
+  "I could not find relevant uploaded content yet. Please wait for ingestion to finish or upload a document with extractable text, then try again.";
 
 async function formatContextDocuments(docs: Document[]): Promise<string> {
   const parts = await Promise.all(
@@ -140,6 +142,11 @@ export async function* streamRagTokens(
 
   try {
     const docs = await retriever.invoke(params.query);
+    if (docs.length === 0) {
+      yield { type: "done", answer: NO_CONTEXT_FALLBACK, documents: [] };
+      trace?.end({ output: NO_CONTEXT_FALLBACK, latencyMs: Date.now() - t0 });
+      return;
+    }
     const context = await formatContextDocuments(docs);
 
     const prompt = createRagCombineChatPrompt();
@@ -165,8 +172,9 @@ export async function* streamRagTokens(
       yield { type: "token", content: piece };
     }
 
-    yield { type: "done", answer: accumulated, documents: docs };
-    trace?.end({ output: accumulated, latencyMs: Date.now() - t0 });
+    const finalAnswer = accumulated.trim().length > 0 ? accumulated : NO_CONTEXT_FALLBACK;
+    yield { type: "done", answer: finalAnswer, documents: docs };
+    trace?.end({ output: finalAnswer, latencyMs: Date.now() - t0 });
   } catch (e) {
     trace?.end({
       output: e instanceof Error ? e.message : String(e),

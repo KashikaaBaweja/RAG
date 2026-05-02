@@ -24,6 +24,8 @@ type Body = {
   topK?: number;
   model?: string;
 };
+const NO_CONTEXT_FALLBACK =
+  "I could not find relevant uploaded content yet. Please wait for ingestion to finish or upload a document with extractable text, then try again.";
 
 function requireEnv(): RagChainEnv | NextResponse {
   const embeddingProvider =
@@ -134,8 +136,18 @@ export async function POST(req: NextRequest) {
         topK: env.topK,
       });
       const docs = await retriever.invoke(query);
+      if (docs.length === 0) {
+        await createQueryLog({
+          orgId,
+          userId,
+          question: query,
+          answerPreview: NO_CONTEXT_FALLBACK.slice(0, 500),
+        });
+        return NextResponse.json({ answer: NO_CONTEXT_FALLBACK, citations: [], context: out.context });
+      }
       const idx = citationIndexFromDocuments(docs);
-      const answer = typeof out.answer === "string" ? out.answer : String(out.answer ?? "");
+      const rawAnswer = typeof out.answer === "string" ? out.answer : String(out.answer ?? "");
+      const answer = rawAnswer.trim().length > 0 ? rawAnswer : NO_CONTEXT_FALLBACK;
       const citations = resolveCitations(answer, idx);
       await createQueryLog({
         orgId,
