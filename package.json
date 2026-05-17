@@ -1,6 +1,7 @@
 {
   "name": "rag-monorepo",
   "private": true,
+  "author": "KashikaaBaweja <kashikabaweja0208@gmail.com>",
   "scripts": {
     "build": "turbo build",
     "dev": "turbo dev",
