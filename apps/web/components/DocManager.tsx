@@ -24,12 +24,15 @@ export function DocManager({ orgId, refreshKey = 0 }: Props) {
   const [docs, setDocs] = useState<ApiDocument[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     if (!orgId) {
       setDocs([]);
+      setLoadErr(null);
       return;
     }
+    setLoadErr(null);
     try {
       const res = await fetch(`/api/documents?orgId=${encodeURIComponent(orgId)}`, {
         credentials: "include",
@@ -38,8 +41,9 @@ export function DocManager({ orgId, refreshKey = 0 }: Props) {
       const data = (await res.json()) as { documents?: ApiDocument[]; error?: string };
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
       setDocs(data.documents ?? []);
-    } catch {
+    } catch (e) {
       setDocs([]);
+      setLoadErr(e instanceof Error ? e.message : "Failed to load documents");
     }
   }, [orgId]);
 
@@ -96,6 +100,7 @@ export function DocManager({ orgId, refreshKey = 0 }: Props) {
     <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
       <h2 className="mb-3 text-sm font-medium text-zinc-200">Documents</h2>
       {msg && <p className="mb-3 text-xs text-zinc-400">{msg}</p>}
+      {loadErr && <p className="mb-3 text-xs text-red-400">{loadErr}</p>}
       {docs.length === 0 ? (
         <p className="text-sm text-zinc-500">No documents for this org yet.</p>
       ) : (

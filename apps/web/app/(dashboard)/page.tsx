@@ -167,14 +167,24 @@ export default function DashboardPage() {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <UploadZone
-          orgId={orgId}
-          onUploaded={() => {
-            setDocRefresh((n) => n + 1);
-            void loadOrgs();
-          }}
-        />
-        <DocManager orgId={orgId} refreshKey={docRefresh} />
+        {orgId ? (
+          <>
+            <UploadZone
+              orgId={orgId}
+              onUploaded={() => {
+                setDocRefresh((n) => n + 1);
+                void loadOrgs();
+              }}
+            />
+            <DocManager orgId={orgId} refreshKey={docRefresh} />
+          </>
+        ) : (
+          <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 lg:col-span-2">
+            <p className="text-sm text-zinc-500">
+              Select an organization to upload or manage documents.
+            </p>
+          </section>
+        )}
       </div>
 
       {orgId ? (

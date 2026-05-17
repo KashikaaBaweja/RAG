@@ -47,11 +47,20 @@ type Props = {
   onActivity?: () => void;
 };
 
+type ChatMessage = {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  citations?: CitationPayload[];
+};
+
+function makeMessageId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export function ChatPanel({ orgId, onActivity }: Props) {
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<
-    { role: "user" | "assistant"; content: string; citations?: CitationPayload[] }[]
-  >([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [drawer, setDrawer] = useState<{ open: boolean; citation: CitationPayload | null }>({
     open: false,
     citation: null,
@@ -78,7 +87,11 @@ export function ChatPanel({ orgId, onActivity }: Props) {
     }));
 
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: q }, { role: "assistant", content: "" }]);
+    setMessages((prev) => [
+      ...prev,
+      { id: makeMessageId(), role: "user", content: q },
+      { id: makeMessageId(), role: "assistant", content: "" },
+    ]);
 
     let assistant = "";
     const idx = new Map<string, CitationPayload>();
@@ -160,9 +173,9 @@ export function ChatPanel({ orgId, onActivity }: Props) {
         {messages.length === 0 && (
           <p className="text-sm text-zinc-500">Ask a question — answers stream with inline source chips.</p>
         )}
-        {messages.map((m, i) => (
+        {messages.map((m) => (
           <div
-            key={i}
+            key={m.id}
             className={`max-w-[95%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
               m.role === "user"
                 ? "ml-auto bg-emerald-900/30 text-emerald-50"
