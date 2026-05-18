@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { listUploadedDocs } from "@/lib/client/doc-store";
 import { ChatPanel } from "@/components/ChatPanel";
 import { DocManager } from "@/components/DocManager";
@@ -23,12 +26,20 @@ type QueryRow = {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
+  const { status: authStatus } = useSession();
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [orgId, setOrgId] = useState("");
   const [docRefresh, setDocRefresh] = useState(0);
   const [uiTick, setUiTick] = useState(0);
   const [recent, setRecent] = useState<QueryRow[]>([]);
   const [loadErr, setLoadErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (authStatus === "unauthenticated") {
+      router.replace("/login?callbackUrl=/dashboard");
+    }
+  }, [authStatus, router]);
 
   const loadOrgs = useCallback(async () => {
     setLoadErr(null);
@@ -74,8 +85,8 @@ export default function DashboardPage() {
   }, [orgId]);
 
   useEffect(() => {
-    void loadOrgs();
-  }, [loadOrgs, docRefresh, uiTick]);
+    if (authStatus === "authenticated") void loadOrgs();
+  }, [authStatus, loadOrgs, docRefresh, uiTick]);
 
   useEffect(() => {
     void loadRecent();
@@ -92,6 +103,10 @@ export default function DashboardPage() {
 
   const kbs = activeOrg?.knowledgeBases ?? [];
 
+  if (authStatus === "loading" || authStatus === "unauthenticated") {
+    return <p className="text-sm text-zinc-500">Checking session…</p>;
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -100,7 +115,24 @@ export default function DashboardPage() {
           <p className="mt-1 text-sm text-zinc-500">
             Org-scoped data from Postgres; Pinecone namespace matches org id.
           </p>
-          {loadErr && <p className="mt-2 text-xs text-red-400">{loadErr}</p>}
+          {loadErr && (
+            <p className="mt-2 text-xs text-red-400">
+              {loadErr}
+              {loadErr === "Unauthorized" && (
+                <>
+                  {" "}
+                  <Link href="/login?callbackUrl=/dashboard" className="underline text-emerald-400">
+                    Sign in
+                  </Link>{" "}
+                  or{" "}
+                  <Link href="/register" className="underline text-emerald-400">
+                    register
+                  </Link>
+                  .
+                </>
+              )}
+            </p>
+          )}
         </div>
         <label className="flex flex-col gap-1 text-xs text-zinc-500">
           Active organization
