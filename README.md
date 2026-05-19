@@ -21,6 +21,8 @@ Open **http://127.0.0.1:3000**
 
 Next.js · Postgres · Redis · Qdrant · Ollama (or OpenAI + Pinecone)
 
-## Latest release
+## Repository
 
-See [commits on `main`](https://github.com/KashikaaBaweja/RAG/commits/main).
+- **Repo:** https://github.com/kashikaabaweja/RAG
+- **Commits:** https://github.com/kashikaabaweja/RAG/commits/main
+- **Profile:** https://github.com/kashikaabaweja
