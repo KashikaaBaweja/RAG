@@ -29,7 +29,7 @@ function renderWithCitationChips(
         key={`c-${m.index}-${id}`}
         type="button"
         onClick={() => onChip(id)}
-        className="mx-0.5 inline-flex items-center rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-zinc-700"
+        className="mx-0.5 inline-flex items-center rounded-md bg-indigo-500/20 px-1.5 py-0.5 font-mono text-[11px] text-indigo-300 ring-1 ring-indigo-500/30 hover:bg-indigo-500/30"
       >
         [{id.slice(0, 12)}…]
       </button>
@@ -156,30 +156,38 @@ export function ChatPanel({ orgId, onActivity }: Props) {
   }, [messages, onActivity, streamAnswer, streaming, input]);
 
   return (
-    <section className="flex min-h-[420px] flex-col rounded-xl border border-zinc-800 bg-zinc-900/40">
-      <header className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-        <h2 className="text-sm font-medium text-zinc-200">Ask your knowledge base</h2>
+    <section className="glass-card flex min-h-[480px] flex-col overflow-hidden">
+      <header className="flex items-center justify-between border-b border-white/[0.06] bg-indigo-500/5 px-5 py-4">
+        <div>
+          <h2 className="font-semibold text-white">AI assistant</h2>
+          <p className="text-xs text-slate-500">Cited answers from your knowledge base</p>
+        </div>
         {streaming && (
           <button
             type="button"
             onClick={abort}
-            className="text-xs text-amber-400 hover:text-amber-300"
+            className="rounded-lg border border-amber-500/30 px-3 py-1 text-xs text-amber-300 hover:bg-amber-500/10"
           >
             Stop
           </button>
         )}
       </header>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
         {messages.length === 0 && (
-          <p className="text-sm text-zinc-500">Ask a question — answers stream with inline source chips.</p>
+          <div className="rounded-xl border border-dashed border-white/10 bg-slate-950/50 p-8 text-center">
+            <p className="text-sm font-medium text-slate-300">Ask your first question</p>
+            <p className="mt-2 text-xs text-slate-500">
+              Try: &ldquo;Summarize the main points in my documents&rdquo;
+            </p>
+          </div>
         )}
         {messages.map((m) => (
           <div
             key={m.id}
-            className={`max-w-[95%] rounded-lg px-3 py-2 text-sm leading-relaxed ${
+            className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
               m.role === "user"
-                ? "ml-auto bg-emerald-900/30 text-emerald-50"
-                : "mr-auto bg-zinc-800/80 text-zinc-100"
+                ? "ml-auto rounded-tr-sm bg-gradient-to-br from-indigo-600 to-violet-600 text-white"
+                : "mr-auto rounded-tl-sm border border-white/[0.06] bg-slate-800/80 text-slate-100"
             }`}
           >
             {m.role === "assistant"
@@ -189,8 +197,8 @@ export function ChatPanel({ orgId, onActivity }: Props) {
         ))}
       </div>
       {error && <p className="px-4 pb-2 text-xs text-red-400">{error}</p>}
-      <footer className="border-t border-zinc-800 p-3">
-        <div className="flex gap-2">
+      <footer className="border-t border-white/[0.06] bg-slate-950/50 p-4">
+        <div className="flex gap-3">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -201,14 +209,14 @@ export function ChatPanel({ orgId, onActivity }: Props) {
               }
             }}
             rows={2}
-            placeholder="Question…"
-            className="min-h-[44px] flex-1 resize-none rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-emerald-600 focus:outline-none"
+            placeholder="Ask about your documents…"
+            className="input-field min-h-[48px] flex-1 resize-none"
           />
           <button
             type="button"
             disabled={streaming || !input.trim()}
             onClick={() => void send()}
-            className="self-end rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-40"
+            className="btn-primary self-end px-5 disabled:opacity-40"
           >
             Send
           </button>

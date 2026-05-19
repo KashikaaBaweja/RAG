@@ -1,14 +1,22 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import type { ReactNode } from "react";
 import { Providers } from "@/components/Providers";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "RAG workspace",
-  description: "Document ingestion and retrieval",
+  title: {
+    default: "DocMind — AI Knowledge Base for Your Documents",
+    template: "%s · DocMind",
+  },
+  description:
+    "Upload PDFs and documents. Get instant, cited answers from your private knowledge base. Built for teams.",
 };
 
 export default function RootLayout({
@@ -18,7 +26,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} min-h-screen bg-zinc-950 font-sans text-zinc-100 antialiased`}>
+      <body
+        className={`${jakarta.variable} min-h-screen font-sans text-slate-100 antialiased`}
+      >
         <Providers>{children}</Providers>
       </body>
     </html>

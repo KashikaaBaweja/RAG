@@ -8,29 +8,25 @@ export function UserMenu() {
   if (status === "loading") return null;
   if (!data?.user?.email) {
     return (
-      <div className="flex items-center gap-2 text-xs">
-        <Link
-          href="/login?callbackUrl=/dashboard"
-          className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:bg-zinc-800"
-        >
+      <div className="flex items-center gap-2">
+        <Link href="/login?callbackUrl=/dashboard" className="btn-secondary px-3 py-2 text-xs">
           Sign in
         </Link>
-        <Link
-          href="/register"
-          className="rounded-md bg-emerald-700 px-2 py-1 text-emerald-50 hover:bg-emerald-600"
-        >
+        <Link href="/register" className="btn-primary px-3 py-2 text-xs">
           Register
         </Link>
       </div>
     );
   }
   return (
-    <div className="flex items-center gap-3 text-xs text-zinc-400">
-      <span className="truncate max-w-[180px]">{data.user.email}</span>
+    <div className="flex items-center gap-3">
+      <span className="hidden max-w-[160px] truncate rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-slate-300 sm:inline">
+        {data.user.email}
+      </span>
       <button
         type="button"
         onClick={() => signOut({ callbackUrl: "/login" })}
-        className="rounded-md border border-zinc-700 px-2 py-1 text-zinc-300 hover:bg-zinc-800"
+        className="btn-secondary px-3 py-2 text-xs"
       >
         Sign out
       </button>

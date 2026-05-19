@@ -97,7 +97,7 @@ export function DocManager({ orgId, refreshKey = 0 }: Props) {
   };
 
   return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5">
+    <section className="glass-card p-6">
       <h2 className="mb-3 text-sm font-medium text-zinc-200">Documents</h2>
       {msg && <p className="mb-3 text-xs text-zinc-400">{msg}</p>}
       {loadErr && <p className="mb-3 text-xs text-red-400">{loadErr}</p>}

@@ -2,6 +2,69 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+@layer base {
+  :root {
+    --brand-from: 99 102 241;
+    --brand-to: 139 92 246;
+    --surface: 15 23 42;
+    --surface-elevated: 30 41 59;
+    --border: 255 255 255;
+    --border-opacity: 0.08;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans), system-ui, sans-serif;
+    background-color: rgb(2 6 23);
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgb(99 102 241 / 0.18), transparent),
+      radial-gradient(ellipse 60% 40% at 100% 0%, rgb(139 92 246 / 0.1), transparent);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: rgb(99 102 241 / 0.35);
+    color: white;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-2xl border border-white/[0.08] bg-slate-900/60 shadow-xl shadow-black/20 backdrop-blur-xl;
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition duration-200 hover:border-indigo-500/25 hover:bg-slate-900/80;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-indigo-500/25 transition hover:from-indigo-400 hover:to-violet-500 disabled:opacity-50 disabled:shadow-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/10;
+  }
+
+  .input-field {
+    @apply mt-1.5 w-full rounded-xl border border-white/10 bg-slate-950/80 px-4 py-2.5 text-sm text-slate-100 placeholder:text-slate-500 focus:border-indigo-500/50 focus:outline-none focus:ring-2 focus:ring-indigo-500/20;
+  }
+
+  .label-text {
+    @apply text-sm font-medium text-slate-300;
+  }
+
+  .section-title {
+    @apply text-lg font-semibold tracking-tight text-white;
+  }
+
+  .section-subtitle {
+    @apply mt-1 text-sm text-slate-400;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-200 bg-clip-text text-transparent;
+  }
 }

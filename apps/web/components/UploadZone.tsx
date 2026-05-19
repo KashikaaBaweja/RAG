@@ -93,16 +93,19 @@ export function UploadZone({ orgId, onUploaded }: Props) {
   );
 
   return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-sm font-medium text-zinc-200">Upload documents</h2>
+    <section className="glass-card p-6">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-white">Upload documents</h2>
+          <p className="text-xs text-slate-500">PDF, Word, text, or Markdown</p>
+        </div>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={busy}
-          className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+          className="btn-primary px-4 py-2 text-xs"
         >
-          Browse
+          Browse files
         </button>
       </div>
       <input
@@ -125,7 +128,7 @@ export function UploadZone({ orgId, onUploaded }: Props) {
         onDragOver={(e) => e.preventDefault()}
         onDrop={onDrop}
         className={`flex min-h-[140px] cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-4 py-8 text-center transition ${
-          dragOver ? "border-emerald-500/70 bg-emerald-500/5" : "border-zinc-700 bg-zinc-950/40"
+          dragOver ? "border-indigo-500/60 bg-indigo-500/10" : "border-white/10 bg-slate-950/50"
         }`}
         onClick={() => !busy && inputRef.current?.click()}
         role="presentation"
@@ -141,7 +144,7 @@ export function UploadZone({ orgId, onUploaded }: Props) {
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
             <div
-              className="h-full rounded-full bg-emerald-500 transition-[width] duration-200"
+              className="h-full rounded-full bg-indigo-500 transition-[width] duration-200"
               style={{ width: `${progress}%` }}
             />
           </div>
