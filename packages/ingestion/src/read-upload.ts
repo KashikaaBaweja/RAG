@@ -12,7 +12,7 @@ const uploadRoot = () => {
   return path.join(process.cwd(), "uploads");
 };
 
-function useS3(): boolean {
+function isS3Enabled(): boolean {
   return (
     process.env.RAG_USE_S3 === "1" ||
     process.env.RAG_USE_S3 === "true"
@@ -20,7 +20,7 @@ function useS3(): boolean {
 }
 
 function s3Client(): S3Client | null {
-  if (!useS3()) return null;
+  if (!isS3Enabled()) return null;
   return new S3Client({ region: process.env.AWS_REGION ?? "us-east-1" });
 }
 
