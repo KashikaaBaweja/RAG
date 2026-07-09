@@ -4,8 +4,10 @@ import { authOptions, assertOrgInToken } from "@/lib/auth";
 import { createQueryLog } from "@/lib/db/knowledgeBase";
 import {
   citationIndexFromDocuments,
+  invokeRagQuery,
   resolveCitations,
   streamRagTokens,
+  transcriptToMessages,
   type RagChainEnv,
 } from "@/lib/rag";
 import { HybridSearchRetriever } from "@/lib/rag/retriever";
@@ -124,8 +126,6 @@ export async function POST(req: NextRequest) {
 
   if (!useSse) {
     try {
-      const { invokeRagQuery } = await import("@/lib/rag/chain");
-      const { transcriptToMessages } = await import("@/lib/rag/memory");
       const out = await invokeRagQuery(env, {
         query,
         chat_history: transcriptToMessages(body.history),

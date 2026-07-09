@@ -41,40 +41,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const docId = uuidv4();
-  const safeName = file.name.replace(/[^\w.-]+/g, "_");
-  const storageKey = `${orgId}/${docId}-${safeName}`;
-  const mimeType = file.type || "application/octet-stream";
+  try {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const docId = uuidv4();
+    const safeName = file.name.replace(/[^\w.-]+/g, "_");
+    const storageKey = `${orgId}/${docId}-${safeName}`;
+    const mimeType = file.type || "application/octet-stream";
 
-  await persistUpload(storageKey, buffer, mimeType);
+    await persistUpload(storageKey, buffer, mimeType);
 
-  const kb = await getDefaultKnowledgeBase(orgId);
-  await createDocumentRecord({
-    orgId,
-    knowledgeBaseId: kb.id,
-    docId,
-    storageKey,
-    filename: file.name,
-    mimeType,
-    status: "PENDING",
-  });
+    const kb = await getDefaultKnowledgeBase(orgId);
+    await createDocumentRecord({
+      orgId,
+      knowledgeBaseId: kb.id,
+      docId,
+      storageKey,
+      filename: file.name,
+      mimeType,
+      status: "PENDING",
+    });
 
-  await getIngestionQueue().add("ingest", {
-    storageKey,
-    docId,
-    orgId,
-    mimeType,
-    filename: file.name,
-  });
+    await getIngestionQueue().add(
+      "ingest",
+      {
+        storageKey,
+        docId,
+        orgId,
+        mimeType,
+        filename: file.name,
+      },
+      { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
+    );
 
-  return NextResponse.json({
-    docId,
-    orgId,
-    filename: file.name,
-    storageKey,
-    mimeType,
-    status: "queued",
-    message: "File stored; ingestion job enqueued.",
-  });
+    return NextResponse.json({
+      docId,
+      orgId,
+      filename: file.name,
+      storageKey,
+      mimeType,
+      status: "queued",
+      message: "File stored; ingestion job enqueued.",
+    });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "Upload failed";
+    console.error("[upload]", e);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

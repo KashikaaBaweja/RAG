@@ -57,13 +57,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Document not found for org" }, { status: 404 });
   }
 
-  await getIngestionQueue().add("ingest", {
-    storageKey,
-    docId,
-    orgId,
-    mimeType,
-    filename,
+  await prisma.document.updateMany({
+    where: { orgId, docId },
+    data: { status: "PENDING" },
   });
+
+  await getIngestionQueue().add(
+    "ingest",
+    {
+      storageKey,
+      docId,
+      orgId,
+      mimeType,
+      filename,
+    },
+    { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
+  );
 
   return NextResponse.json({ status: "queued", docId });
 }

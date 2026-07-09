@@ -2,8 +2,15 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
-const uploadRoot = () =>
-  process.env.RAG_UPLOAD_DIR ?? path.join(process.cwd(), "uploads");
+const uploadRoot = () => {
+  const configured = process.env.RAG_UPLOAD_DIR?.trim();
+  if (configured) {
+    return path.isAbsolute(configured)
+      ? configured
+      : path.resolve(process.cwd(), configured);
+  }
+  return path.join(process.cwd(), "uploads");
+};
 
 function useS3(): boolean {
   return (

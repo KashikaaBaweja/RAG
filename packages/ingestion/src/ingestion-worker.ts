@@ -1,4 +1,5 @@
 import { Worker } from "bullmq";
+import { PrismaClient, type DocumentStatus } from "@prisma/client";
 import { runIngestion } from "./pipeline.js";
 import { readUpload } from "./read-upload.js";
 import { bullmqConnectionFromEnv } from "./redis-connection.js";
@@ -12,6 +13,23 @@ export type IngestionJobData = {
   mimeType: string;
   filename: string;
 };
+
+const prisma = new PrismaClient();
+
+async function setDocumentStatus(
+  orgId: string,
+  docId: string,
+  status: DocumentStatus
+): Promise<void> {
+  try {
+    await prisma.document.updateMany({
+      where: { orgId, docId },
+      data: { status },
+    });
+  } catch (e) {
+    console.warn("[ingestion-worker] Failed to update document status:", e);
+  }
+}
 
 /**
  * Redis-backed BullMQ worker: load bytes from storage → `runIngestion`.
@@ -52,28 +70,50 @@ export function createIngestionWorker(): Worker<IngestionJobData> {
         throw new Error("Missing Pinecone configuration");
       }
 
-      const buffer = await readUpload(storageKey);
+      try {
+        const buffer = await readUpload(storageKey);
 
-      return runIngestion({
-        buffer,
-        mimeType,
-        filename,
-        docId,
-        orgId,
-        embeddingProvider,
-        vectorProvider,
-        openaiApiKey,
-        pineconeApiKey,
-        pineconeIndexName,
-        ollamaBaseUrl,
-        ollamaEmbeddingModel,
-        qdrantUrl,
-        qdrantCollection,
-        qdrantApiKey,
-      });
+        const result = await runIngestion({
+          buffer,
+          mimeType,
+          filename,
+          docId,
+          orgId,
+          embeddingProvider,
+          vectorProvider,
+          openaiApiKey,
+          pineconeApiKey,
+          pineconeIndexName,
+          ollamaBaseUrl,
+          ollamaEmbeddingModel,
+          qdrantUrl,
+          qdrantCollection,
+          qdrantApiKey,
+        });
+
+        await setDocumentStatus(orgId, docId, "READY");
+        console.log(
+          `[ingestion-worker] Indexed ${filename} (${result.chunkCount} chunks)`
+        );
+        return result;
+      } catch (e) {
+        await setDocumentStatus(orgId, docId, "FAILED");
+        throw e;
+      }
     },
-    { connection: bullmqConnectionFromEnv() }
+    {
+      connection: bullmqConnectionFromEnv(),
+      // Retry when Ollama/Qdrant briefly unavailable
+      settings: {},
+    }
   );
+
+  worker.on("failed", (job, err) => {
+    console.error(
+      `[ingestion-worker] Job ${job?.id} failed:`,
+      err?.message ?? err
+    );
+  });
 
   console.log(`[ingestion-worker] Listening on queue "${INGESTION_QUEUE}"`);
   return worker;

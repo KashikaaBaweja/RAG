@@ -208,7 +208,11 @@ async function queryQdrant(
   });
 
   if (!res.ok) {
-    throw new Error(`Qdrant search failed: ${res.status} ${await res.text()}`);
+    const body = await res.text();
+    if (res.status === 404 && body.includes("doesn't exist")) {
+      return [];
+    }
+    throw new Error(`Qdrant search failed: ${res.status} ${body}`);
   }
 
   const json = (await res.json()) as QdrantSearchResponse;

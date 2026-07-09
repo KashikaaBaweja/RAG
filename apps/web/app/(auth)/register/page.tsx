@@ -30,7 +30,7 @@ export default function RegisterPage() {
       }
       router.push("/login");
     } catch {
-      setError("Network error");
+      setError("Could not reach the server. Is Docker running? Try: docker compose up -d");
     } finally {
       setLoading(false);
     }
