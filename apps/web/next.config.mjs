@@ -9,13 +9,8 @@ const nextConfig = {
   // compiling it on every request made first page loads extremely slow.
   transpilePackages: ["@rag/ingestion"],
   experimental: {
-    serverComponentsExternalPackages: [
-      "pdf-parse",
-      "mammoth",
-      "@prisma/client",
-      "bullmq",
-      "ioredis",
-    ],
+    // Only packages that are direct deps of `web` (Turbopack requires that).
+    serverComponentsExternalPackages: ["@prisma/client", "bullmq", "ioredis"],
   },
 };
 
