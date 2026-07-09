@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@prisma/client": "^6.2.0",
     "@rag/ingestion": "workspace:*",
     "dotenv": "^16.4.7"
   },

@@ -3,6 +3,7 @@ export { embedTexts, type EmbedderOptions } from "./embedder.js";
 export {
   INGESTION_QUEUE,
   createIngestionWorker,
+  type DocumentStatusUpdater,
   type IngestionJobData,
 } from "./ingestion-worker.js";
 export { loadDocument, type LoaderInput } from "./loader.js";
