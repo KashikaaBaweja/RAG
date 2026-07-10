@@ -3,8 +3,9 @@ import type { Document } from "@langchain/core/documents";
 import type { BaseMessage } from "@langchain/core/messages";
 import { createRetrievalChain } from "langchain/chains/retrieval";
 import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
+import OpenAI from "openai";
 import { flushLangfuse, startRagChainTrace } from "@/lib/telemetry/langfuse";
-import { createRagCombineChatPrompt, ragDocumentPrompt } from "./prompt";
+import { createRagCombineChatPrompt, ragDocumentPrompt, RAG_SYSTEM_PROMPT } from "./prompt";
 import { HybridSearchRetriever } from "./retriever";
 import type { RagEnv } from "./types";
 import { transcriptToMessages } from "./memory";
@@ -12,6 +13,8 @@ import { transcriptToMessages } from "./memory";
 const DOC_SEP = "\n\n";
 const NO_CONTEXT_FALLBACK =
   "I could not find relevant uploaded content yet. Please wait for ingestion to finish or upload a document with extractable text, then try again.";
+
+const GEMINI_OPENAI_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/";
 
 async function formatContextDocuments(docs: Document[]): Promise<string> {
   const parts = await Promise.all(
@@ -35,15 +38,33 @@ export type RagChainEnv = RagEnv & {
 };
 
 function createChatModel(env: RagChainEnv, streaming = false): ChatOpenAI {
-  if (env.embeddingProvider === "openai") {
+  const chatProvider = env.chatProvider ?? env.embeddingProvider;
+
+  if (chatProvider === "openai") {
     if (!env.openaiApiKey) {
-      throw new Error("OPENAI_API_KEY is required when RAG_EMBEDDING_PROVIDER=openai");
+      throw new Error("OPENAI_API_KEY is required when RAG_CHAT_PROVIDER=openai");
     }
 
     return new ChatOpenAI({
       model: env.model ?? "gpt-4o-mini",
       temperature: 0,
       openAIApiKey: env.openaiApiKey,
+      streaming,
+    });
+  }
+
+  if (chatProvider === "gemini") {
+    if (!env.geminiApiKey) {
+      throw new Error("GEMINI_API_KEY is required when RAG_CHAT_PROVIDER=gemini");
+    }
+
+    // Prefer OpenAI-compatible Gemini endpoint. Avoid LangChain defaults that
+    // send frequency_penalty/logit_bias (Gemini returns empty HTTP 400).
+    return new ChatOpenAI({
+      model: env.model ?? env.geminiChatModel ?? "gemini-2.5-flash",
+      temperature: 0,
+      openAIApiKey: env.geminiApiKey,
+      configuration: { baseURL: GEMINI_OPENAI_BASE },
       streaming,
     });
   }
@@ -57,6 +78,53 @@ function createChatModel(env: RagChainEnv, streaming = false): ChatOpenAI {
     streaming,
   });
 }
+
+function geminiClient(apiKey: string): OpenAI {
+  return new OpenAI({ apiKey, baseURL: GEMINI_OPENAI_BASE });
+}
+
+/** Stream chat via OpenAI SDK (Gemini-compatible) — strips LangChain-only failure modes. */
+async function* streamGeminiTokens(
+  env: RagChainEnv,
+  context: string,
+  query: string,
+  history?: { role: "user" | "assistant"; content: string }[]
+): AsyncGenerator<string> {
+  if (!env.geminiApiKey) {
+    throw new Error("GEMINI_API_KEY is required when RAG_CHAT_PROVIDER=gemini");
+  }
+
+  const client = geminiClient(env.geminiApiKey);
+  const model = env.model ?? env.geminiChatModel ?? "gemini-2.5-flash";
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    {
+      role: "system",
+      content: `${RAG_SYSTEM_PROMPT}\n\nChunks:\n${context}`,
+    },
+  ];
+
+  for (const turn of history ?? []) {
+    if (!turn.content?.trim()) continue;
+    messages.push({
+      role: turn.role === "assistant" ? "assistant" : "user",
+      content: turn.content,
+    });
+  }
+  messages.push({ role: "user", content: query });
+
+  const stream = await client.chat.completions.create({
+    model,
+    temperature: 0,
+    stream: true,
+    messages,
+  });
+
+  for await (const chunk of stream) {
+    const piece = chunk.choices?.[0]?.delta?.content;
+    if (piece) yield piece;
+  }
+}
+
 
 /**
  * LangChain retrieval QA pattern: retrieve → stuff documents → answer.
@@ -149,27 +217,45 @@ export async function* streamRagTokens(
     }
     const context = await formatContextDocuments(docs);
 
-    const prompt = createRagCombineChatPrompt();
-    const messages = await prompt.formatMessages({
-      context,
-      input: params.query,
-      chat_history: transcriptToMessages(params.history),
-    });
-
     let accumulated = "";
-    const stream = await llm.stream(messages);
-    for await (const chunk of stream) {
-      let piece = "";
-      if (typeof chunk.content === "string") {
-        piece = chunk.content;
-      } else if (Array.isArray(chunk.content)) {
-        piece = chunk.content
-          .map((p) => (typeof p === "object" && p && "text" in p ? String((p as { text?: string }).text) : ""))
-          .join("");
+    const chatProvider = params.chatProvider ?? params.embeddingProvider;
+
+    if (chatProvider === "gemini") {
+      for await (const piece of streamGeminiTokens(
+        params,
+        context,
+        params.query,
+        params.history
+      )) {
+        accumulated += piece;
+        yield { type: "token", content: piece };
       }
-      if (!piece) continue;
-      accumulated += piece;
-      yield { type: "token", content: piece };
+    } else {
+      const prompt = createRagCombineChatPrompt();
+      const messages = await prompt.formatMessages({
+        context,
+        input: params.query,
+        chat_history: transcriptToMessages(params.history),
+      });
+
+      const stream = await llm.stream(messages);
+      for await (const chunk of stream) {
+        let piece = "";
+        if (typeof chunk.content === "string") {
+          piece = chunk.content;
+        } else if (Array.isArray(chunk.content)) {
+          piece = chunk.content
+            .map((p) =>
+              typeof p === "object" && p && "text" in p
+                ? String((p as { text?: string }).text)
+                : ""
+            )
+            .join("");
+        }
+        if (!piece) continue;
+        accumulated += piece;
+        yield { type: "token", content: piece };
+      }
     }
 
     const finalAnswer = accumulated.trim().length > 0 ? accumulated : NO_CONTEXT_FALLBACK;

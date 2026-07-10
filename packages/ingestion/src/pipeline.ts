@@ -10,13 +10,15 @@ export type RunIngestionParams = {
   filename: string;
   docId: string;
   orgId: string;
-  embeddingProvider?: "openai" | "ollama";
+  embeddingProvider?: "openai" | "ollama" | "gemini";
   vectorProvider?: "pinecone" | "qdrant";
   openaiApiKey?: string;
+  geminiApiKey?: string;
   pineconeApiKey?: string;
   pineconeIndexName?: string;
   ollamaBaseUrl?: string;
   ollamaEmbeddingModel?: string;
+  geminiEmbeddingModel?: string;
   qdrantUrl?: string;
   qdrantCollection?: string;
   qdrantApiKey?: string;
@@ -46,9 +48,19 @@ export async function runIngestion(
   const chunks = (await chunkText(text)).map((c) => scrubPiiFromText(c));
   const embeddings = await embedTexts(chunks, {
     provider: params.embeddingProvider,
-    apiKey: params.openaiApiKey,
+    apiKey:
+      params.embeddingProvider === "gemini"
+        ? params.geminiApiKey
+        : params.embeddingProvider === "openai"
+          ? params.openaiApiKey
+          : undefined,
     baseUrl: params.ollamaBaseUrl,
-    model: params.ollamaEmbeddingModel,
+    model:
+      params.embeddingProvider === "gemini"
+        ? params.geminiEmbeddingModel
+        : params.embeddingProvider === "ollama"
+          ? params.ollamaEmbeddingModel
+          : undefined,
   });
 
   const records: UpsertRecord[] = chunks.map((chunkText, chunkIndex) => ({

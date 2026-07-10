@@ -5,4 +5,4 @@ export {
   upsertVectors,
   type UpsertRecord,
   type VectorMetadata,
-} from "@rag/ingestion";
+} from "@rag/ingestion/pinecone";

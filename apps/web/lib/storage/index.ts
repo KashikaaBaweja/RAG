@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, writeFile, readFile } from "fs/promises";
 import path from "path";
-import { PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 const uploadRoot = () => {
   const configured = process.env.RAG_UPLOAD_DIR?.trim();
@@ -21,7 +21,22 @@ function s3Client(): S3Client | null {
   return new S3Client({ region: process.env.AWS_REGION ?? "us-east-1" });
 }
 
-/** Persist uploaded bytes to local disk or S3 (read by ingestion worker via `readUpload`). */
+export async function readUpload(storageKey: string): Promise<Buffer> {
+  const client = s3Client();
+  const bucket = process.env.RAG_S3_BUCKET;
+
+  if (client && bucket) {
+    const out = await client.send(
+      new GetObjectCommand({ Bucket: bucket, Key: storageKey })
+    );
+    const bytes = await out.Body?.transformToByteArray();
+    if (!bytes) throw new Error("Empty S3 object");
+    return Buffer.from(bytes);
+  }
+
+  return readFile(path.join(uploadRoot(), storageKey));
+}
+
 export async function persistUpload(
   storageKey: string,
   data: Buffer,

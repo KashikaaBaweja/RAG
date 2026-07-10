@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { chunkText, embedTexts } from "@rag/ingestion";
+import { chunkText } from "@rag/ingestion/chunker";
+import { embedTexts } from "@rag/ingestion/embedder";
 
 describe("ingestion — chunker", () => {
   it("splits long text into bounded chunks (~500 target, overlap)", async () => {

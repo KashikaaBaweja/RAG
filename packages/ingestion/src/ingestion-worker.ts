@@ -19,6 +19,13 @@ export type DocumentStatusUpdater = (
   status: "READY" | "FAILED"
 ) => Promise<void>;
 
+function parseEmbeddingProvider(
+  raw: string | undefined
+): "openai" | "ollama" | "gemini" {
+  if (raw === "openai" || raw === "gemini" || raw === "ollama") return raw;
+  return "ollama";
+}
+
 /**
  * Redis-backed BullMQ worker: load bytes from storage → `runIngestion`.
  * Run as a **separate Node process** (not inside Next.js).
@@ -29,19 +36,24 @@ export type DocumentStatusUpdater = (
 export function createIngestionWorker(
   onStatus?: DocumentStatusUpdater
 ): Worker<IngestionJobData> {
-  const embeddingProvider = process.env.RAG_EMBEDDING_PROVIDER === "openai" ? "openai" : "ollama";
+  const embeddingProvider = parseEmbeddingProvider(process.env.RAG_EMBEDDING_PROVIDER);
   const vectorProvider = process.env.RAG_VECTOR_PROVIDER === "pinecone" ? "pinecone" : "qdrant";
   const openaiApiKey = process.env.OPENAI_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const pineconeApiKey = process.env.PINECONE_API_KEY;
   const pineconeIndexName = process.env.PINECONE_INDEX_NAME;
   const ollamaBaseUrl = process.env.OLLAMA_BASE_URL;
   const ollamaEmbeddingModel = process.env.OLLAMA_EMBEDDING_MODEL;
+  const geminiEmbeddingModel = process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-001";
   const qdrantUrl = process.env.QDRANT_URL;
   const qdrantCollection = process.env.QDRANT_COLLECTION;
   const qdrantApiKey = process.env.QDRANT_API_KEY;
 
   if (embeddingProvider === "openai" && !openaiApiKey) {
     console.warn("[ingestion-worker] Missing OPENAI_API_KEY — jobs will fail until set.");
+  }
+  if (embeddingProvider === "gemini" && !geminiApiKey) {
+    console.warn("[ingestion-worker] Missing GEMINI_API_KEY — jobs will fail until set.");
   }
 
   if (vectorProvider === "pinecone" && (!pineconeApiKey || !pineconeIndexName)) {
@@ -57,6 +69,9 @@ export function createIngestionWorker(
 
       if (embeddingProvider === "openai" && !openaiApiKey) {
         throw new Error("Missing OpenAI configuration");
+      }
+      if (embeddingProvider === "gemini" && !geminiApiKey) {
+        throw new Error("Missing Gemini configuration");
       }
 
       if (vectorProvider === "pinecone" && (!pineconeApiKey || !pineconeIndexName)) {
@@ -75,10 +90,12 @@ export function createIngestionWorker(
           embeddingProvider,
           vectorProvider,
           openaiApiKey,
+          geminiApiKey,
           pineconeApiKey,
           pineconeIndexName,
           ollamaBaseUrl,
           ollamaEmbeddingModel,
+          geminiEmbeddingModel,
           qdrantUrl,
           qdrantCollection,
           qdrantApiKey,
@@ -104,6 +121,8 @@ export function createIngestionWorker(
     );
   });
 
-  console.log(`[ingestion-worker] Listening on queue "${INGESTION_QUEUE}"`);
+  console.log(
+    `[ingestion-worker] Listening on queue "${INGESTION_QUEUE}" (embeddings=${embeddingProvider})`
+  );
   return worker;
 }

@@ -6,4 +6,4 @@ export {
   type UpsertRecord,
   type VectorMetadata,
 } from "./pinecone";
-export { runIngestion, type RunIngestionParams, type RunIngestionResult } from "@rag/ingestion";
+export { runIngestion, type RunIngestionParams, type RunIngestionResult } from "@rag/ingestion/pipeline";

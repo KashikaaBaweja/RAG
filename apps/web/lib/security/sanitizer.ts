@@ -1,7 +1,3 @@
-import { scrubPiiFromText } from "@rag/ingestion";
-
-export { scrubPiiFromText };
-
 const MAX_QUERY_LEN = 16_000;
 
 /** Common prompt-injection / jailbreak phrasing (heuristic, not exhaustive). */
@@ -23,8 +19,19 @@ export type QuerySanitizeResult =
   | { ok: false; reason: string; status: 400 };
 
 /**
+ * Best-effort PII redaction before text is embedded or stored in vector metadata.
+ */
+export function scrubPiiFromText(input: string): string {
+  let s = input;
+  s = s.replace(/\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, "[email]");
+  s = s.replace(/\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/g, "[phone]");
+  s = s.replace(/\b\d{3}-\d{2}-\d{4}\b/g, "[ssn]");
+  s = s.replace(/\b(?:\d[ -]*?){13,19}\d\b/g, "[card]");
+  return s;
+}
+
+/**
  * Validates user query length and blocks obvious injection scaffolding.
- * Returns a safe-to-forward `query` string (trimmed); does not remove benign content.
  */
 export function sanitizeUserQuery(raw: string): QuerySanitizeResult {
   const query = raw.trim();

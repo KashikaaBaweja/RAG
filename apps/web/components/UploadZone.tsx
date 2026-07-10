@@ -70,7 +70,9 @@ export function UploadZone({ orgId, onUploaded }: Props) {
 
       xhr.onerror = () => {
         setBusy(false);
-        setStatus("Network error");
+        setStatus(
+          "Network error — the site server may have stopped. Run: scripts/open-site.sh then retry."
+        );
         setProgress(0);
       };
 

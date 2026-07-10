@@ -5,11 +5,8 @@ export type EmbeddingProvider = "openai" | "ollama" | "gemini";
 export type EmbedderOptions = {
   provider?: EmbeddingProvider;
   apiKey?: string;
-  /** @default "text-embedding-3-small" (openai) / "gemini-embedding-001" (gemini) / "nomic-embed-text" (ollama) */
   model?: string;
-  /** @default "http://127.0.0.1:11434" */
   baseUrl?: string;
-  /** @default 64 */
   batchSize?: number;
   /** Gemini only — keep 768 to match local Qdrant collection. */
   dimensions?: number;
@@ -25,9 +22,7 @@ type GeminiEmbedResponse = {
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
 
-/**
- * Calls the configured embedding provider in batches; returns vectors in chunk order.
- */
+/** Embed texts for retrieval — kept in `web` so Turbopack never loads pdf-parse. */
 export async function embedTexts(
   texts: string[],
   options: EmbedderOptions

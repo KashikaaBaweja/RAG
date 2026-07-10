@@ -9,6 +9,42 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./embedder": {
+      "types": "./dist/embedder.d.ts",
+      "import": "./dist/embedder.js"
+    },
+    "./chunker": {
+      "types": "./dist/chunker.d.ts",
+      "import": "./dist/chunker.js"
+    },
+    "./pii-scrub": {
+      "types": "./dist/pii-scrub.d.ts",
+      "import": "./dist/pii-scrub.js"
+    },
+    "./redis-connection": {
+      "types": "./dist/redis-connection.d.ts",
+      "import": "./dist/redis-connection.js"
+    },
+    "./ingestion-worker": {
+      "types": "./dist/ingestion-worker.d.ts",
+      "import": "./dist/ingestion-worker.js"
+    },
+    "./read-upload": {
+      "types": "./dist/read-upload.d.ts",
+      "import": "./dist/read-upload.js"
+    },
+    "./pinecone": {
+      "types": "./dist/pinecone.d.ts",
+      "import": "./dist/pinecone.js"
+    },
+    "./pipeline": {
+      "types": "./dist/pipeline.d.ts",
+      "import": "./dist/pipeline.js"
+    },
+    "./loader": {
+      "types": "./dist/loader.d.ts",
+      "import": "./dist/loader.js"
     }
   },
   "scripts": {

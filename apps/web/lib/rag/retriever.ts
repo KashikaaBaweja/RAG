@@ -2,7 +2,7 @@ import { BaseRetriever } from "@langchain/core/retrievers";
 import type { CallbackManagerForRetrieverRun } from "@langchain/core/callbacks/manager";
 import { Document } from "@langchain/core/documents";
 import { Pinecone } from "@pinecone-database/pinecone";
-import { embedTexts } from "@rag/ingestion";
+import { embedTexts } from "./embedder";
 import type { RagEnv, RetrievedChunk } from "./types";
 
 const RRF_K = 60;
@@ -74,9 +74,19 @@ export async function hybridRetrieve(params: HybridRetrieveParams): Promise<Retr
 
   const [embedding] = await embedTexts([params.query], {
     provider: params.embeddingProvider,
-    apiKey: params.openaiApiKey,
+    apiKey:
+      params.embeddingProvider === "gemini"
+        ? params.geminiApiKey
+        : params.embeddingProvider === "openai"
+          ? params.openaiApiKey
+          : undefined,
     baseUrl: params.ollamaBaseUrl,
-    model: params.ollamaEmbeddingModel,
+    model:
+      params.embeddingProvider === "gemini"
+        ? params.geminiEmbeddingModel
+        : params.embeddingProvider === "ollama"
+          ? params.ollamaEmbeddingModel
+          : undefined,
   });
 
   const matches =

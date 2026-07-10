@@ -1,11 +1,32 @@
 import { Queue } from "bullmq";
-import {
-  INGESTION_QUEUE,
-  bullmqConnectionFromEnv,
-  type IngestionJobData,
-} from "@rag/ingestion";
 
-export { INGESTION_QUEUE, type IngestionJobData };
+export const INGESTION_QUEUE = "ingestion" as const;
+
+export type IngestionJobData = {
+  storageKey: string;
+  docId: string;
+  orgId: string;
+  mimeType: string;
+  filename: string;
+};
+
+function bullmqConnectionFromEnv(): {
+  host: string;
+  port: number;
+  maxRetriesPerRequest: null;
+} {
+  const url = process.env.REDIS_URL ?? "redis://127.0.0.1:6379";
+  try {
+    const parsed = new URL(url);
+    return {
+      host: parsed.hostname || "127.0.0.1",
+      port: parsed.port ? Number(parsed.port) : 6379,
+      maxRetriesPerRequest: null,
+    };
+  } catch {
+    return { host: "127.0.0.1", port: 6379, maxRetriesPerRequest: null };
+  }
+}
 
 let queue: Queue<IngestionJobData> | null = null;
 

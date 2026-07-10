@@ -30,14 +30,32 @@ const NO_CONTEXT_FALLBACK =
   "I could not find relevant uploaded content yet. Please wait for ingestion to finish or upload a document with extractable text, then try again.";
 
 function requireEnv(): RagChainEnv | NextResponse {
-  const embeddingProvider =
-    process.env.RAG_EMBEDDING_PROVIDER === "openai" ? "openai" : "ollama";
+  const parseProvider = (raw: string | undefined) => {
+    if (raw === "openai" || raw === "gemini" || raw === "ollama") return raw;
+    return "ollama" as const;
+  };
+
+  const embeddingProvider = parseProvider(process.env.RAG_EMBEDDING_PROVIDER);
+  const chatProvider = parseProvider(
+    process.env.RAG_CHAT_PROVIDER ?? process.env.RAG_EMBEDDING_PROVIDER
+  );
   const vectorProvider = process.env.RAG_VECTOR_PROVIDER === "pinecone" ? "pinecone" : "qdrant";
   const openaiApiKey = process.env.OPENAI_API_KEY;
+  const geminiApiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const pineconeApiKey = process.env.PINECONE_API_KEY;
   const pineconeIndexName = process.env.PINECONE_INDEX_NAME;
+
   if (embeddingProvider === "openai" && !openaiApiKey) {
     return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
+  }
+  if (chatProvider === "openai" && !openaiApiKey) {
+    return NextResponse.json({ error: "Missing OPENAI_API_KEY" }, { status: 500 });
+  }
+  if (embeddingProvider === "gemini" && !geminiApiKey) {
+    return NextResponse.json({ error: "Missing GEMINI_API_KEY" }, { status: 500 });
+  }
+  if (chatProvider === "gemini" && !geminiApiKey) {
+    return NextResponse.json({ error: "Missing GEMINI_API_KEY" }, { status: 500 });
   }
   if (vectorProvider === "pinecone" && (!pineconeApiKey || !pineconeIndexName)) {
     return NextResponse.json(
@@ -48,13 +66,17 @@ function requireEnv(): RagChainEnv | NextResponse {
 
   return {
     embeddingProvider,
+    chatProvider,
     vectorProvider,
     openaiApiKey,
+    geminiApiKey,
     pineconeApiKey,
     pineconeIndexName,
     ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
     ollamaEmbeddingModel: process.env.OLLAMA_EMBEDDING_MODEL,
     ollamaChatModel: process.env.OLLAMA_CHAT_MODEL,
+    geminiChatModel: process.env.GEMINI_CHAT_MODEL ?? "gemini-2.5-flash",
+    geminiEmbeddingModel: process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-001",
     qdrantUrl: process.env.QDRANT_URL,
     qdrantCollection: process.env.QDRANT_COLLECTION,
     qdrantApiKey: process.env.QDRANT_API_KEY,
