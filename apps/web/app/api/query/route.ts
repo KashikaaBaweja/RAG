@@ -11,6 +11,7 @@ import {
   type RagChainEnv,
 } from "@/lib/rag";
 import { HybridSearchRetriever } from "@/lib/rag/retriever";
+import { resolveVectorProvider } from "@/lib/rag/vector-provider";
 import { ragQueriesTotal, ragQueryLatencySeconds } from "@/lib/telemetry/metrics";
 import type { Document } from "@langchain/core/documents";
 
@@ -39,7 +40,7 @@ function requireEnv(): RagChainEnv | NextResponse {
   const chatProvider = parseProvider(
     process.env.RAG_CHAT_PROVIDER ?? process.env.RAG_EMBEDDING_PROVIDER
   );
-  const vectorProvider = process.env.RAG_VECTOR_PROVIDER === "pinecone" ? "pinecone" : "qdrant";
+  const vectorProvider = resolveVectorProvider();
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const pineconeApiKey = process.env.PINECONE_API_KEY;
@@ -57,7 +58,7 @@ function requireEnv(): RagChainEnv | NextResponse {
   if (chatProvider === "gemini" && !geminiApiKey) {
     return NextResponse.json({ error: "Missing GEMINI_API_KEY" }, { status: 500 });
   }
-  if (vectorProvider === "pinecone" && (!pineconeApiKey || !pineconeIndexName)) {
+  if (vectorProvider === "pinecone" && (!pineconeApiKey?.trim() || !pineconeIndexName?.trim())) {
     return NextResponse.json(
       { error: "Missing PINECONE_API_KEY or PINECONE_INDEX_NAME" },
       { status: 500 }

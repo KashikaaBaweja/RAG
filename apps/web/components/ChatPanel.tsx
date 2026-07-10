@@ -8,38 +8,49 @@ import { SourceDrawer } from "./SourceDrawer";
 
 const SOURCE_RE = /\[SOURCE:([^\]\s]+)\]/g;
 
+/** Hide raw [SOURCE:uuid] codes; show friendly [1], [2] chips instead. */
 function renderWithCitationChips(
   text: string,
   onChip: (id: string) => void
 ): ReactNode[] {
+  // Drop incomplete trailing marker while the answer is still streaming.
+  const display = text.replace(/\[SOURCE:[^\]]*$/, "");
   const nodes: ReactNode[] = [];
   let last = 0;
   let m: RegExpExecArray | null;
   const re = new RegExp(SOURCE_RE.source, SOURCE_RE.flags);
+  const idToNum = new Map<string, number>();
+  let nextNum = 1;
   for (;;) {
-    m = re.exec(text);
+    m = re.exec(display);
     if (m === null) break;
     if (m.index > last) {
-      nodes.push(<span key={`t-${last}`}>{text.slice(last, m.index)}</span>);
+      nodes.push(<span key={`t-${last}`}>{display.slice(last, m.index)}</span>);
     }
     const id = m[1] ?? "";
     if (!id) continue;
+    let num = idToNum.get(id);
+    if (num === undefined) {
+      num = nextNum++;
+      idToNum.set(id, num);
+    }
     nodes.push(
       <button
         key={`c-${m.index}-${id}`}
         type="button"
         onClick={() => onChip(id)}
-        className="mx-0.5 inline-flex items-center rounded-md bg-indigo-500/20 px-1.5 py-0.5 font-mono text-[11px] text-indigo-300 ring-1 ring-indigo-500/30 hover:bg-indigo-500/30"
+        title="View source"
+        className="mx-0.5 inline-flex items-center rounded-md bg-indigo-500/20 px-1.5 py-0.5 text-[11px] font-medium text-indigo-300 ring-1 ring-indigo-500/30 hover:bg-indigo-500/30"
       >
-        [{id.slice(0, 12)}…]
+        [{num}]
       </button>
     );
     last = m.index + m[0].length;
   }
-  if (last < text.length) {
-    nodes.push(<span key="t-end">{text.slice(last)}</span>);
+  if (last < display.length) {
+    nodes.push(<span key="t-end">{display.slice(last)}</span>);
   }
-  return nodes.length ? nodes : [text];
+  return nodes.length ? nodes : [display];
 }
 
 type Props = {

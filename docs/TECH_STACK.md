@@ -101,8 +101,14 @@ Auth is enforced in API routes (and dashboard redirects). Org membership scopes 
 |------------|------|
 | **Gemini** (Google AI Studio) | **Primary** chat model + embeddings (free-tier friendly) |
 | **LangChain** | Retrieval chain, prompts, streaming answers |
-| **Hybrid retrieval** | Dense vector search (Qdrant) + light lexical re-ranking |
+| **Hybrid retrieval** | Dense vector search (Pinecone preferred, Qdrant fallback) + light lexical re-ranking |
 | **Citations** | Answers reference source chunks (`[SOURCE:…]` style chips) |
+
+### Vector DB priority
+
+1. **Pinecone** — used automatically when `PINECONE_API_KEY` + `PINECONE_INDEX_NAME` are set  
+2. **Qdrant** — local Docker fallback when Pinecone is not configured  
+3. Optional force: `RAG_VECTOR_PROVIDER=pinecone|qdrant`
 
 ### Optional / alternate providers
 
@@ -110,13 +116,12 @@ Auth is enforced in API routes (and dashboard redirects). Org membership scopes 
 |----------|----------|
 | **Ollama** | Fully local models (no cloud API) |
 | **OpenAI** | Paid cloud alternative |
-| **Pinecone** | Cloud vector DB instead of Qdrant |
 
 Configured with env flags such as:
 
 - `RAG_CHAT_PROVIDER=gemini|ollama|openai`
 - `RAG_EMBEDDING_PROVIDER=gemini|ollama|openai`
-- `RAG_VECTOR_PROVIDER=qdrant|pinecone`
+- `RAG_VECTOR_PROVIDER=` (empty = auto; Pinecone wins when keys exist)
 
 ---
 
@@ -128,8 +133,8 @@ Separate Node process so heavy PDF work stays off the web server.
 2. **Parse** — `pdf-parse` (PDF), `mammoth` (DOCX), plain text / Markdown  
 3. **Chunk** — split into overlapping text segments  
 4. **Scrub PII** (best-effort) before embedding  
-5. **Embed** — Gemini `gemini-embedding-001` (768 dims to match Qdrant)  
-6. **Upsert** vectors into Qdrant (payload includes `orgId`, `docId`, text, page)  
+5. **Embed** — Gemini `gemini-embedding-001` (768 dims; match your Pinecone index)  
+6. **Upsert** vectors into **Pinecone** when configured, otherwise **Qdrant** (payload includes `orgId`, `docId`, text, page)  
 7. **Update status** in Postgres — `PENDING` → `READY` or `FAILED`  
 
 ---

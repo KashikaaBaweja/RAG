@@ -26,6 +26,17 @@ function parseEmbeddingProvider(
   return "ollama";
 }
 
+/** Pinecone wins when credentials exist; otherwise Qdrant. Explicit env overrides. */
+function resolveVectorProvider(): "pinecone" | "qdrant" {
+  const explicit = process.env.RAG_VECTOR_PROVIDER;
+  const hasPinecone = Boolean(
+    process.env.PINECONE_API_KEY?.trim() && process.env.PINECONE_INDEX_NAME?.trim()
+  );
+  if (explicit === "pinecone") return "pinecone";
+  if (explicit === "qdrant") return "qdrant";
+  return hasPinecone ? "pinecone" : "qdrant";
+}
+
 /**
  * Redis-backed BullMQ worker: load bytes from storage → `runIngestion`.
  * Run as a **separate Node process** (not inside Next.js).
@@ -37,7 +48,7 @@ export function createIngestionWorker(
   onStatus?: DocumentStatusUpdater
 ): Worker<IngestionJobData> {
   const embeddingProvider = parseEmbeddingProvider(process.env.RAG_EMBEDDING_PROVIDER);
-  const vectorProvider = process.env.RAG_VECTOR_PROVIDER === "pinecone" ? "pinecone" : "qdrant";
+  const vectorProvider = resolveVectorProvider();
   const openaiApiKey = process.env.OPENAI_API_KEY;
   const geminiApiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
   const pineconeApiKey = process.env.PINECONE_API_KEY;
@@ -103,7 +114,7 @@ export function createIngestionWorker(
 
         await onStatus?.(orgId, docId, "READY");
         console.log(
-          `[ingestion-worker] Indexed ${filename} (${result.chunkCount} chunks)`
+          `[ingestion-worker] Indexed ${filename} (${result.chunkCount} chunks) via ${vectorProvider}`
         );
         return result;
       } catch (e) {
@@ -122,7 +133,7 @@ export function createIngestionWorker(
   });
 
   console.log(
-    `[ingestion-worker] Listening on queue "${INGESTION_QUEUE}" (embeddings=${embeddingProvider})`
+    `[ingestion-worker] Listening on queue "${INGESTION_QUEUE}" (embeddings=${embeddingProvider}, vectors=${vectorProvider})`
   );
   return worker;
 }
