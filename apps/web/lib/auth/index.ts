@@ -30,6 +30,9 @@ export function assertRole(
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  // On Vercel/preview domains, trust forwarded host headers to avoid
+  // "Server configuration" auth errors when NEXTAUTH_URL is not exact.
+  trustHost: true,
   pages: {
     signIn: "/login",
   },
@@ -84,5 +87,6 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  // Support both legacy NEXTAUTH_SECRET and AUTH_SECRET naming.
+  secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
 };
