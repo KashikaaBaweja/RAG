@@ -6,6 +6,7 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "web#build": {
+      "dependsOn": ["^build"],
       "cache": false
     },
     "dev": {
