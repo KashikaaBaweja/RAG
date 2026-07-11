@@ -3,16 +3,19 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "prisma generate && next dev",
-    "build": "prisma generate && next build",
+    "dev": "prisma generate --schema=./prisma/schema.prisma && next dev",
+    "build": "prisma generate --schema=./prisma/schema.prisma && next build",
     "start": "next start",
     "lint": "eslint .",
     "test": "vitest run --config ../../vitest.config.ts",
     "test:watch": "vitest --config ../../vitest.config.ts",
     "test:e2e": "playwright test --config ../../playwright.config.cjs",
     "typecheck": "tsc --noEmit",
-    "db:generate": "prisma generate",
+    "db:generate": "prisma generate --schema=./prisma/schema.prisma",
     "db:push": "prisma db push"
+  },
+  "prisma": {
+    "schema": "./prisma/schema.prisma"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.712.0",
