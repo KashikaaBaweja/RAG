@@ -6,7 +6,12 @@ import { getServerSession } from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { authOptions, assertOrgInToken } from "@/lib/auth";
-import { createDocumentRecord, getDefaultKnowledgeBase } from "@/lib/db/knowledgeBase";
+import {
+  createDocumentRecord,
+  getDefaultKnowledgeBase,
+  updateDocumentStatus,
+} from "@/lib/db/knowledgeBase";
+import { ingestBufferNow, shouldRunIngestionNow } from "@/lib/ingestion/run-now";
 import { getIngestionQueue } from "@/lib/queue";
 import { persistUpload } from "@/lib/storage";
 
@@ -61,17 +66,44 @@ export async function POST(req: NextRequest) {
       status: "PENDING",
     });
 
-    await getIngestionQueue().add(
-      "ingest",
-      {
-        storageKey,
-        docId,
-        orgId,
-        mimeType,
-        filename: file.name,
-      },
-      { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
-    );
+    if (shouldRunIngestionNow()) {
+      try {
+        await ingestBufferNow({
+          buffer,
+          docId,
+          orgId,
+          mimeType,
+          filename: file.name,
+        });
+        await updateDocumentStatus(orgId, docId, "READY");
+      } catch (ingestErr) {
+        await updateDocumentStatus(orgId, docId, "FAILED");
+        throw ingestErr;
+      }
+    } else {
+      try {
+        await getIngestionQueue().add(
+          "ingest",
+          {
+            storageKey,
+            docId,
+            orgId,
+            mimeType,
+            filename: file.name,
+          },
+          { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
+        );
+      } catch {
+        await ingestBufferNow({
+          buffer,
+          docId,
+          orgId,
+          mimeType,
+          filename: file.name,
+        });
+        await updateDocumentStatus(orgId, docId, "READY");
+      }
+    }
 
     return NextResponse.json({
       docId,
@@ -79,8 +111,10 @@ export async function POST(req: NextRequest) {
       filename: file.name,
       storageKey,
       mimeType,
-      status: "queued",
-      message: "File stored; ingestion job enqueued.",
+      status: shouldRunIngestionNow() ? "ready" : "queued",
+      message: shouldRunIngestionNow()
+        ? "File uploaded and indexed."
+        : "File stored; ingestion job enqueued.",
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Upload failed";

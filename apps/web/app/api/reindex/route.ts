@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { authOptions, assertOrgInToken } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import { ingestStoredUploadNow, shouldRunIngestionNow } from "@/lib/ingestion/run-now";
 import { getIngestionQueue } from "@/lib/queue";
 
 export const runtime = "nodejs";
@@ -62,17 +63,64 @@ export async function POST(req: NextRequest) {
     data: { status: "PENDING" },
   });
 
-  await getIngestionQueue().add(
-    "ingest",
-    {
-      storageKey,
-      docId,
-      orgId,
-      mimeType,
-      filename,
-    },
-    { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
-  );
+  if (shouldRunIngestionNow()) {
+    try {
+      await ingestStoredUploadNow({
+        storageKey,
+        docId,
+        orgId,
+        mimeType,
+        filename,
+      });
+      await prisma.document.updateMany({
+        where: { orgId, docId },
+        data: { status: "READY" },
+      });
+      return NextResponse.json({ status: "ready", docId });
+    } catch (e) {
+      await prisma.document.updateMany({
+        where: { orgId, docId },
+        data: { status: "FAILED" },
+      });
+      const message = e instanceof Error ? e.message : "Re-index failed";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
 
-  return NextResponse.json({ status: "queued", docId });
+  try {
+    await getIngestionQueue().add(
+      "ingest",
+      {
+        storageKey,
+        docId,
+        orgId,
+        mimeType,
+        filename,
+      },
+      { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
+    );
+    return NextResponse.json({ status: "queued", docId });
+  } catch {
+    try {
+      await ingestStoredUploadNow({
+        storageKey,
+        docId,
+        orgId,
+        mimeType,
+        filename,
+      });
+      await prisma.document.updateMany({
+        where: { orgId, docId },
+        data: { status: "READY" },
+      });
+      return NextResponse.json({ status: "ready", docId });
+    } catch (e) {
+      await prisma.document.updateMany({
+        where: { orgId, docId },
+        data: { status: "FAILED" },
+      });
+      const message = e instanceof Error ? e.message : "Re-index failed";
+      return NextResponse.json({ error: message }, { status: 500 });
+    }
+  }
 }
