@@ -66,7 +66,9 @@ export async function POST(req: NextRequest) {
       status: "PENDING",
     });
 
-    if (shouldRunIngestionNow()) {
+    const runNow = shouldRunIngestionNow();
+
+    if (runNow) {
       try {
         await ingestBufferNow({
           buffer,
@@ -78,7 +80,22 @@ export async function POST(req: NextRequest) {
         await updateDocumentStatus(orgId, docId, "READY");
       } catch (ingestErr) {
         await updateDocumentStatus(orgId, docId, "FAILED");
-        throw ingestErr;
+        const message =
+          ingestErr instanceof Error
+            ? ingestErr.message
+            : "Uploaded, but ingestion failed. Check model provider configuration.";
+        return NextResponse.json(
+          {
+            docId,
+            orgId,
+            filename: file.name,
+            storageKey,
+            mimeType,
+            status: "failed",
+            message,
+          },
+          { status: 200 }
+        );
       }
     } else {
       try {
@@ -94,14 +111,34 @@ export async function POST(req: NextRequest) {
           { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
         );
       } catch {
-        await ingestBufferNow({
-          buffer,
-          docId,
-          orgId,
-          mimeType,
-          filename: file.name,
-        });
-        await updateDocumentStatus(orgId, docId, "READY");
+        try {
+          await ingestBufferNow({
+            buffer,
+            docId,
+            orgId,
+            mimeType,
+            filename: file.name,
+          });
+          await updateDocumentStatus(orgId, docId, "READY");
+        } catch (ingestErr) {
+          await updateDocumentStatus(orgId, docId, "FAILED");
+          const message =
+            ingestErr instanceof Error
+              ? ingestErr.message
+              : "Uploaded, but ingestion failed. Check model provider configuration.";
+          return NextResponse.json(
+            {
+              docId,
+              orgId,
+              filename: file.name,
+              storageKey,
+              mimeType,
+              status: "failed",
+              message,
+            },
+            { status: 200 }
+          );
+        }
       }
     }
 
@@ -111,8 +148,8 @@ export async function POST(req: NextRequest) {
       filename: file.name,
       storageKey,
       mimeType,
-      status: shouldRunIngestionNow() ? "ready" : "queued",
-      message: shouldRunIngestionNow()
+      status: runNow ? "ready" : "queued",
+      message: runNow
         ? "File uploaded and indexed."
         : "File stored; ingestion job enqueued.",
     });

@@ -33,6 +33,8 @@ const NO_CONTEXT_FALLBACK =
 function requireEnv(): RagChainEnv | NextResponse {
   const parseProvider = (raw: string | undefined) => {
     if (raw === "openai" || raw === "gemini" || raw === "ollama") return raw;
+    // Vercel runtime cannot access localhost Ollama.
+    if (process.env.VERCEL) return "gemini" as const;
     return "ollama" as const;
   };
 

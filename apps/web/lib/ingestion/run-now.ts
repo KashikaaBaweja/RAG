@@ -5,6 +5,8 @@ function parseEmbeddingProvider(
   raw: string | undefined
 ): "openai" | "ollama" | "gemini" {
   if (raw === "openai" || raw === "gemini" || raw === "ollama") return raw;
+  // Vercel cannot reach local Ollama; prefer cloud provider by default.
+  if (process.env.VERCEL) return "gemini";
   return "ollama";
 }
 
