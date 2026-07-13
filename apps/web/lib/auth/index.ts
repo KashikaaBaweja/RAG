@@ -84,5 +84,6 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  // Support both legacy NEXTAUTH_SECRET and AUTH_SECRET naming.
+  secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
 };

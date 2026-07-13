@@ -9,6 +9,8 @@ type Props = {
   onUploaded?: (doc: UploadedDocRecord) => void;
 };
 
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // Keep below common serverless body caps.
+
 export function UploadZone({ orgId, onUploaded }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -18,6 +20,12 @@ export function UploadZone({ orgId, onUploaded }: Props) {
 
   const uploadFile = useCallback(
     (file: File) => {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setBusy(false);
+        setProgress(0);
+        setStatus("File is too large for current deployment upload limit (max ~4MB).");
+        return;
+      }
       setBusy(true);
       setProgress(0);
       setStatus(`Uploading ${file.name}…`);
@@ -59,6 +67,8 @@ export function UploadZone({ orgId, onUploaded }: Props) {
             upsertUploadedDoc(rec);
             setStatus("Queued for ingestion.");
             onUploaded?.(rec);
+          } else if (xhr.status === 413) {
+            setStatus("Upload too large for server limit. Try a smaller file (max ~4MB).");
           } else {
             setStatus(json.error ?? `Upload failed (${xhr.status})`);
           }

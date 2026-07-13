@@ -1,1 +1,1 @@
-export { chunkText } from "@rag/ingestion/chunker";
+export { chunkText } from "@rag/ingestion";

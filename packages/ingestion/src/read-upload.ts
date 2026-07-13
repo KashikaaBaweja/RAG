@@ -10,6 +10,8 @@ const uploadRoot = () => {
       ? configured
       : path.resolve(process.cwd(), configured);
   }
+  // Vercel serverless runtime cannot read/write inside /var/task.
+  if (process.env.VERCEL) return "/tmp/uploads";
   return path.join(process.cwd(), "uploads");
 };
 

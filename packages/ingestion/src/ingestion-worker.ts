@@ -25,7 +25,6 @@ function parseEmbeddingProvider(
   if (raw === "openai" || raw === "gemini" || raw === "ollama") return raw;
   return "ollama";
 }
-
 /** Pinecone wins when credentials exist; otherwise Qdrant. Explicit env overrides. */
 function resolveVectorProvider(): "pinecone" | "qdrant" {
   const explicit = process.env.RAG_VECTOR_PROVIDER;
@@ -131,7 +130,6 @@ export function createIngestionWorker(
       err?.message ?? err
     );
   });
-
   console.log(
     `[ingestion-worker] Listening on queue "${INGESTION_QUEUE}" (embeddings=${embeddingProvider}, vectors=${vectorProvider})`
   );

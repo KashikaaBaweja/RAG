@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { hash } from "bcryptjs";
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db/prisma";
@@ -7,6 +8,13 @@ export const runtime = "nodejs";
 /** Bootstrap account + personal org (dev-friendly; add rate limits before production). */
 export async function POST(req: NextRequest) {
   try {
+    if (!process.env.DATABASE_URL) {
+      return NextResponse.json(
+        { error: "Server database is not configured (missing DATABASE_URL)." },
+        { status: 500 }
+      );
+    }
+
     const body = (await req.json()) as {
       email?: string;
       password?: string;
@@ -56,7 +64,28 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, slug });
   } catch (e) {
-    console.error(e);
-    return NextResponse.json({ error: "Registration failed" }, { status: 500 });
+    console.error("[auth/register]", e);
+
+    if (e instanceof Prisma.PrismaClientInitializationError) {
+      return NextResponse.json(
+        {
+          error:
+            "Database connection failed. Check DATABASE_URL and provider network/SSL settings.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (
+      e instanceof Prisma.PrismaClientKnownRequestError &&
+      e.code === "P2002"
+    ) {
+      return NextResponse.json({ error: "Email already registered" }, { status: 409 });
+    }
+
+    return NextResponse.json(
+      { error: "Registration failed due to a server configuration issue." },
+      { status: 500 }
+    );
   }
 }

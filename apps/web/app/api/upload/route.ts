@@ -6,11 +6,12 @@ import { getServerSession } from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { authOptions, assertOrgInToken } from "@/lib/auth";
-import { createDocumentRecord, getDefaultKnowledgeBase } from "@/lib/db/knowledgeBase";
 import {
-  isQueueConfigured,
-  runInlineIngestion,
-} from "@/lib/ingestion/run-inline";
+  createDocumentRecord,
+  getDefaultKnowledgeBase,
+  updateDocumentStatus,
+} from "@/lib/db/knowledgeBase";
+import { ingestBufferNow, shouldRunIngestionNow } from "@/lib/ingestion/run-now";
 import { getIngestionQueue } from "@/lib/queue";
 import { persistUpload } from "@/lib/storage";
 
@@ -66,38 +67,92 @@ export async function POST(req: NextRequest) {
       status: "PENDING",
     });
 
-    const job = { storageKey, docId, orgId, mimeType, filename: file.name };
+    const runNow = shouldRunIngestionNow();
 
-    if (isQueueConfigured()) {
-      await getIngestionQueue().add("ingest", job, {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 2000 },
-      });
-
-      return NextResponse.json({
-        docId,
-        orgId,
-        filename: file.name,
-        storageKey,
-        mimeType,
-        status: "queued",
-        message: "File stored; ingestion job enqueued.",
-      });
+    if (runNow) {
+      try {
+        await ingestBufferNow({
+          buffer,
+          docId,
+          orgId,
+          mimeType,
+          filename: file.name,
+        });
+        await updateDocumentStatus(orgId, docId, "READY");
+      } catch (ingestErr) {
+        await updateDocumentStatus(orgId, docId, "FAILED");
+        const message =
+          ingestErr instanceof Error
+            ? ingestErr.message
+            : "Uploaded, but ingestion failed. Check model provider configuration.";
+        return NextResponse.json(
+          {
+            docId,
+            orgId,
+            filename: file.name,
+            storageKey,
+            mimeType,
+            status: "failed",
+            message,
+          },
+          { status: 200 }
+        );
+      }
+    } else {
+      try {
+        await getIngestionQueue().add(
+          "ingest",
+          {
+            storageKey,
+            docId,
+            orgId,
+            mimeType,
+            filename: file.name,
+          },
+          { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
+        );
+      } catch {
+        try {
+          await ingestBufferNow({
+            buffer,
+            docId,
+            orgId,
+            mimeType,
+            filename: file.name,
+          });
+          await updateDocumentStatus(orgId, docId, "READY");
+        } catch (ingestErr) {
+          await updateDocumentStatus(orgId, docId, "FAILED");
+          const message =
+            ingestErr instanceof Error
+              ? ingestErr.message
+              : "Uploaded, but ingestion failed. Check model provider configuration.";
+          return NextResponse.json(
+            {
+              docId,
+              orgId,
+              filename: file.name,
+              storageKey,
+              mimeType,
+              status: "failed",
+              message,
+            },
+            { status: 200 }
+          );
+        }
+      }
     }
 
-    // No Redis (serverless deploy): ingest inside this request.
-    const result = await runInlineIngestion(job);
     return NextResponse.json({
       docId,
       orgId,
       filename: file.name,
       storageKey,
       mimeType,
-      status: result.status === "READY" ? "ready" : "failed",
-      message:
-        result.status === "READY"
-          ? `File stored and indexed (${result.chunkCount} chunks).`
-          : `File stored but indexing failed: ${result.error}`,
+      status: runNow ? "ready" : "queued",
+      message: runNow
+        ? "File uploaded and indexed."
+        : "File stored; ingestion job enqueued.",
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Upload failed";
