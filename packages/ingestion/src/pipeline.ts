@@ -45,7 +45,10 @@ export async function runIngestion(
     filename: params.filename,
   });
 
-  const chunks = (await chunkText(text)).map((c) => scrubPiiFromText(c));
+  // Prefix each chunk with the filename so users can ask about a document by name.
+  const chunks = (await chunkText(text)).map(
+    (c) => `[File: ${params.filename}]\n${scrubPiiFromText(c)}`
+  );
   const embeddings = await embedTexts(chunks, {
     provider: params.embeddingProvider,
     apiKey:
@@ -72,6 +75,7 @@ export async function runIngestion(
       page,
       chunkIndex,
       text: chunkText,
+      filename: params.filename,
     },
   }));
 

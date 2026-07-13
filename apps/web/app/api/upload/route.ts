@@ -7,10 +7,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { authOptions, assertOrgInToken } from "@/lib/auth";
 import { createDocumentRecord, getDefaultKnowledgeBase } from "@/lib/db/knowledgeBase";
+import {
+  isQueueConfigured,
+  runInlineIngestion,
+} from "@/lib/ingestion/run-inline";
 import { getIngestionQueue } from "@/lib/queue";
 import { persistUpload } from "@/lib/storage";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -61,26 +66,38 @@ export async function POST(req: NextRequest) {
       status: "PENDING",
     });
 
-    await getIngestionQueue().add(
-      "ingest",
-      {
-        storageKey,
+    const job = { storageKey, docId, orgId, mimeType, filename: file.name };
+
+    if (isQueueConfigured()) {
+      await getIngestionQueue().add("ingest", job, {
+        attempts: 3,
+        backoff: { type: "exponential", delay: 2000 },
+      });
+
+      return NextResponse.json({
         docId,
         orgId,
-        mimeType,
         filename: file.name,
-      },
-      { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
-    );
+        storageKey,
+        mimeType,
+        status: "queued",
+        message: "File stored; ingestion job enqueued.",
+      });
+    }
 
+    // No Redis (serverless deploy): ingest inside this request.
+    const result = await runInlineIngestion(job);
     return NextResponse.json({
       docId,
       orgId,
       filename: file.name,
       storageKey,
       mimeType,
-      status: "queued",
-      message: "File stored; ingestion job enqueued.",
+      status: result.status === "READY" ? "ready" : "failed",
+      message:
+        result.status === "READY"
+          ? `File stored and indexed (${result.chunkCount} chunks).`
+          : `File stored but indexing failed: ${result.error}`,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Upload failed";

@@ -51,6 +51,16 @@ export function DocManager({ orgId, refreshKey = 0 }: Props) {
     void reload();
   }, [reload, refreshKey]);
 
+  // Keep status fresh while ingestion is still running.
+  useEffect(() => {
+    const hasPending = docs.some((d) => d.status === "PENDING");
+    if (!hasPending) return;
+    const id = window.setInterval(() => {
+      void reload();
+    }, 3000);
+    return () => window.clearInterval(id);
+  }, [docs, reload]);
+
   const onDelete = async (docId: string) => {
     setMsg(null);
     try {

@@ -22,6 +22,7 @@
     "@pinecone-database/pinecone": "4.0.0",
     "@prisma/client": "^6.2.0",
     "@rag/ingestion": "workspace:*",
+    "@supabase/supabase-js": "^2.110.2",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.30.1",
     "ioredis": "^5.10.1",

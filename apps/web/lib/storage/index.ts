@@ -1,6 +1,11 @@
 import { mkdir, writeFile, readFile } from "fs/promises";
 import path from "path";
 import { GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import {
+  resolveStorageBackend,
+  supabaseDownload,
+  supabaseUpload,
+} from "./supabase";
 
 const uploadRoot = () => {
   const configured = process.env.RAG_UPLOAD_DIR?.trim();
@@ -12,21 +17,30 @@ const uploadRoot = () => {
   return path.join(process.cwd(), "uploads");
 };
 
-function isS3Enabled(): boolean {
-  return process.env.RAG_USE_S3 === "1" || process.env.RAG_USE_S3 === "true";
-}
-
-function s3Client(): S3Client | null {
-  if (!isS3Enabled()) return null;
+function s3Client(): S3Client {
   return new S3Client({ region: process.env.AWS_REGION ?? "us-east-1" });
 }
 
 export async function readUpload(storageKey: string): Promise<Buffer> {
-  const client = s3Client();
-  const bucket = process.env.RAG_S3_BUCKET;
+  const backend = resolveStorageBackend();
 
-  if (client && bucket) {
-    const out = await client.send(
+  if (backend === "supabase") {
+    try {
+      return await supabaseDownload(storageKey);
+    } catch (e) {
+      // Older uploads predate Supabase and still live on local disk.
+      try {
+        return await readFile(path.join(uploadRoot(), storageKey));
+      } catch {
+        throw e;
+      }
+    }
+  }
+
+  if (backend === "s3") {
+    const bucket = process.env.RAG_S3_BUCKET;
+    if (!bucket) throw new Error("RAG_S3_BUCKET is required when using S3 storage");
+    const out = await s3Client().send(
       new GetObjectCommand({ Bucket: bucket, Key: storageKey })
     );
     const bytes = await out.Body?.transformToByteArray();
@@ -42,11 +56,17 @@ export async function persistUpload(
   data: Buffer,
   mimeType: string
 ): Promise<void> {
-  const client = s3Client();
-  const bucket = process.env.RAG_S3_BUCKET;
+  const backend = resolveStorageBackend();
 
-  if (client && bucket) {
-    await client.send(
+  if (backend === "supabase") {
+    await supabaseUpload(storageKey, data, mimeType);
+    return;
+  }
+
+  if (backend === "s3") {
+    const bucket = process.env.RAG_S3_BUCKET;
+    if (!bucket) throw new Error("RAG_S3_BUCKET is required when using S3 storage");
+    await s3Client().send(
       new PutObjectCommand({
         Bucket: bucket,
         Key: storageKey,

@@ -5,9 +5,14 @@ import { getServerSession } from "next-auth";
 import { NextResponse, type NextRequest } from "next/server";
 import { authOptions, assertOrgInToken } from "@/lib/auth";
 import { prisma } from "@/lib/db/prisma";
+import {
+  isQueueConfigured,
+  runInlineIngestion,
+} from "@/lib/ingestion/run-inline";
 import { getIngestionQueue } from "@/lib/queue";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 type Body = {
   storageKey?: string;
@@ -62,17 +67,23 @@ export async function POST(req: NextRequest) {
     data: { status: "PENDING" },
   });
 
-  await getIngestionQueue().add(
-    "ingest",
-    {
-      storageKey,
-      docId,
-      orgId,
-      mimeType,
-      filename,
-    },
-    { attempts: 3, backoff: { type: "exponential", delay: 2000 } }
-  );
+  const job = { storageKey, docId, orgId, mimeType, filename };
 
-  return NextResponse.json({ status: "queued", docId });
+  if (isQueueConfigured()) {
+    await getIngestionQueue().add("ingest", job, {
+      attempts: 3,
+      backoff: { type: "exponential", delay: 2000 },
+    });
+    return NextResponse.json({ status: "queued", docId });
+  }
+
+  // No Redis (serverless deploy): ingest inside this request.
+  const result = await runInlineIngestion(job);
+  if (result.status === "FAILED") {
+    return NextResponse.json(
+      { status: "failed", docId, error: result.error },
+      { status: 500 }
+    );
+  }
+  return NextResponse.json({ status: "ready", docId, chunkCount: result.chunkCount });
 }

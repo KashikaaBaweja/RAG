@@ -90,8 +90,9 @@ Auth is enforced in API routes (and dashboard redirects). Org membership scopes 
 | **PostgreSQL 16** | Users, orgs, memberships, document status, query history | Docker (`5433` → container `5432`) |
 | **Redis 7** | BullMQ job queues | Docker (`6379`) |
 | **Qdrant** | Vector embeddings + chunk payloads | Docker (`6333`) |
-| **Local disk** (`uploads/`) | Raw uploaded files | Shared folder for web + worker |
-| **S3** (optional) | Same files in cloud object storage | Via `RAG_USE_S3=true` |
+| **Supabase Storage** (preferred when configured) | Uploaded files in free-tier cloud storage | `SUPABASE_URL` + service role + bucket |
+| **Local disk** (`uploads/`) | Raw uploaded files (local fallback) | Shared folder for web + worker |
+| **S3** (optional) | Same files in AWS object storage | Via `RAG_USE_S3=true` |
 
 ---
 
